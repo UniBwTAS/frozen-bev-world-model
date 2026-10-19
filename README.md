@@ -15,24 +15,28 @@ English packaging (semantics unchanged).
 
 ![BEV world model map forecast](img/maps_gate_pure.gif)
 
-Top: all six nuScenes cameras (2 Hz). Bottom: LiDAR point cloud (grayscale,
-colored by return **intensity** — it is the *real measurement of the future
-frame*, not part of the forecast; ego vehicle sketched at (0,0), front =
-up) with the BEV map segmentation: left = world-model forecast (pure —
-the colored maps are everything the model predicts), right = real latent
-(reference; red boxes = actual traffic at that instant, ground truth).
-The badge per step gives the proxy mIoU (forecast vs. decoded real latent)
-and the scene's mean gate α (the model's copy/predict statistic); the inset
-tracks the mIoU decay (the persistence baseline decays even faster — its
-curve is in the NPZ). Scene selection is disclosed: the
-scene-start window with the largest mean gate activation — no
-image-quality cherry-picking. Length: 3 context frames + k = 21 rollout
-steps (10.5 s); the decay over the horizon is visible *and* honest.
+Duets of six nuScenes cameras (2 Hz) and the decoded BEV grids. Every
+colored element in the duet GIFs is decoded — maps (left) = the world
+model's map forecast, red boxes = detections decoded from the same
+forecast latent; the right panel is always the measured reference:
+cyan = detections decoded from the real future latent, gray dashes =
+actual traffic (GT). Each frame carries the per-step proxy mIoU
+(forecast decode vs. decoded real latent — no annotations needed) and the
+matched GT-vehicle count; the corner inset overlays the scene's own mIoU
+decay on the aggregate validation curves (solid = forecast, dashed =
+naive persistence, dotted = ego-compensated persistence). Scene selection
+is disclosed by computed statistics (drift ratio / front-arc traffic
+count / gate-α extremes) — no image-quality cherry-picking. The GIFs
+cover the first 4 s of a k = 21 rollout.
 
 | Asset | Scene | Notes |
 |---|---|---|
-| `img/maps_gate_pure.gif` | gate-α maximum | pure map-only display (no LiDAR/boxes) |
-| `img/maps_crossing_pure.gif` | gate-α minimum | pure map-only display, crowd crossing |
+| `img/forecast_d5324133.gif` | construction street (drift 1.38) | maps + detections (red); matched up to 13/17 |
+| `img/forecast_f1b7b463.gif` | busy intersection (drift 0.98) | maps + detections |
+| `img/forecast_029af235.gif` | fast street (drift 1.72) | maps + detections, speed-extrapolation limit |
+| `img/forecast_gatealpha.gif` | gate-α maximum (ᾱ 0.71) | copy/predict predict pole; moving map |
+| `img/forecast_crossing.gif` | gate-α minimum (ᾱ 0.03) | copy pole; matched up to 47/64 |
+| `img/maps_gate_pure.gif` / `img/maps_crossing_pure.gif` | gate | pure map-only variants (no boxes) |
 | `img/rollout_filmstrip.png` | dynamic | paper-style filmstrip (context + k = 1..4) |
 
 ## Headline results (full validation, against nuScenes annotations)

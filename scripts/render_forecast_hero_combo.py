@@ -50,6 +50,8 @@ VEH_CLASSES = {"car", "truck", "bus", "trailer", "construction_vehicle",
                "pedestrian", "motorcycle", "bicycle"}
 CLASSES = ["car", "truck", "construction_vehicle", "bus", "trailer",
            "barrier", "motorcycle", "bicycle", "pedestrian", "traffic_cone"]
+
+from matplotlib.lines import Line2D
 BG = "#ffffff"
 
 
@@ -155,8 +157,6 @@ def main():
     ap.add_argument("--k-shown", type=int, default=8,
                     help="render only the first k steps (the drift-tracked "
                          "range); the curve panel always shows the full decay")
-    ap.add_argument("--arrows", action="store_true",
-                    help="draw the next-step real world-shift arrow on both panels")
     ap.add_argument("--agg-json", default=None,
                     help="optional decay JSON {wm:[..],naiv:[..],ego:[..]} — "
                          "aggregate (validation-wide) curves drawn in the "
@@ -185,20 +185,23 @@ def main():
     gsc = fig.add_gridspec(2, 1, height_ratios=(0.115, 0.62),
                            left=0.004, right=0.996, top=0.706, bottom=0.01,
                            wspace=0.06, hspace=0.10)
-    ax_front = fig.add_axes((0.35, 0.775, 0.30, 0.175))
-    ax_fl = fig.add_axes((0.012, 0.79, 0.248, 0.145))
-    ax_fr = fig.add_axes((0.74, 0.79, 0.248, 0.145))
-    ax_bl = fig.add_axes((0.012, 0.564, 0.248, 0.145))
-    ax_b = fig.add_axes((0.35, 0.549, 0.30, 0.175))
-    ax_br = fig.add_axes((0.74, 0.564, 0.248, 0.145))
-    gsb = fig.add_gridspec(1, 2, left=0.004, right=0.996, top=0.528,
+    ax_front = fig.add_axes((0.363, 0.760, 0.274, 0.160))
+    ax_fl = fig.add_axes((0.012, 0.775, 0.2225, 0.130))
+    ax_fr = fig.add_axes((0.7655, 0.775, 0.2225, 0.130))
+    ax_bl = fig.add_axes((0.012, 0.553, 0.2225, 0.130))
+    ax_b = fig.add_axes((0.363, 0.538, 0.274, 0.160))
+    ax_br = fig.add_axes((0.7655, 0.553, 0.2225, 0.130))
+    gsb = fig.add_gridspec(1, 2, left=0.004, right=0.996, top=0.492,
                            bottom=0.01, wspace=0.06)
     ax_f = fig.add_subplot(gsb[0])
     ax_r = fig.add_subplot(gsb[1])
     title = fig.suptitle("", fontsize=22, y=0.99)
 
     # corner sparkline: anchored to the upper-right of the forecast panel
-    ins = fig.add_axes((0.298, 0.402, 0.18, 0.10))
+    # corner sparkline: pinned into the panel's upper-right corner with
+    # equal padding from both the top and the right edge of the drawn
+    # (equal-aspect) map square
+    ins = fig.add_axes((0.285, 0.388, 0.18, 0.092))
     ins.set_facecolor("white"); ins.patch.set_alpha(0.9)
     ins.set_xticks([]); ins.set_yticks([])
     miou_full = dg["dynamic_mious"]
@@ -214,9 +217,9 @@ def main():
         ins.text(0.05, 0.06, "gray = aggregate (val) · orange = this scene",
                  transform=ins.transAxes, fontsize=6.2, color="#444444")
 
-    rig_labels = {"CAM_FRONT": "front", "CAM_FRONT_LEFT": "front left",
-                  "CAM_FRONT_RIGHT": "front right", "CAM_BACK": "back",
-                  "CAM_BACK_LEFT": "back left", "CAM_BACK_RIGHT": "back right"}
+    rig_labels = {"CAM_FRONT": "Front", "CAM_FRONT_LEFT": "Front Left",
+                  "CAM_FRONT_RIGHT": "Front Right", "CAM_BACK": "Back",
+                  "CAM_BACK_LEFT": "Back Left", "CAM_BACK_RIGHT": "Back Right"}
     rig = [(ax_front, CAM_FRONT), (ax_fl, CAM_FRONT_LEFT),
            (ax_fr, CAM_FRONT_RIGHT), (ax_bl, CAM_BACK_LEFT),
            (ax_b, CAM_BACK), (ax_br, CAM_BACK_RIGHT)]
@@ -233,7 +236,7 @@ def main():
             ax.clear()
             ax.imshow(plt.imread(Path(args.data_root) / rel))
             ax.set_title(rig_labels[cam],
-                         fontsize=15 if ax is ax_front else 12,
+                         fontsize=13,
                          pad=3.5, color="#333333")
             ax.set_xticks([]); ax.set_yticks([])
             for sp in ax.spines.values():
@@ -258,13 +261,13 @@ def main():
                                    score_thresh=args.score_thresh,
                                    scores=pr["scores_%d" % step])
                     ax.text(0.03, 0.035,
-                            "observed context\n"
-                            "(detections decoded from\n the input latent)",
-                            transform=ax.transAxes, fontsize=12.5,
+                            "observed context (input latent)\n"
+                            "detections decoded · no forecast yet",
+                            transform=ax.transAxes, fontsize=13.5,
                             color=DET_COLOR,
-                            bbox=dict(boxstyle="round,pad=0.3", fc="white",
-                                      alpha=0.85))
-                    ax.set_title("map context + detections (red)",
+                            bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="#b9b9b9",
+                                      lw=0.8, alpha=0.94))
+                    ax.set_title("Map Context + Detections (Red)",
                                  fontsize=15, pad=5, color=DET_COLOR)
                 else:
                     kk = step - n_input + 1
@@ -279,25 +282,33 @@ def main():
                                    scores=pr["scores_%d" % step])
                     ax.text(0.03, 0.035,
                             "forecast (world model)\n"
-                            f"mIoU {mm:.2f} · matched {found}/{n_}",
+                            f"mIoU {mm:.2f} · matched {found}/{n_} GT"
+                            " (≤ 2 m)",
                             transform=ax.transAxes, fontsize=13.5,
                             color=DET_COLOR,
-                            bbox=dict(boxstyle="round,pad=0.3", fc="white",
-                                      alpha=0.88))
-                    ax.set_title("map forecast + detections (red)",
+                            bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="#b9b9b9",
+                                      lw=0.8, alpha=0.94))
+                    ax.set_title("Map Forecast + Detections (Red)",
                                  fontsize=15, pad=5, color=DET_COLOR)
             else:
                 draw_boxes_bev(ax, rr["boxes_%d" % step], ORACLE_COLOR, 1.5,
                                score_thresh=args.score_thresh,
                                scores=rr["scores_%d" % step])
                 draw_boxes_bev(ax, gtb, GT_COLOR, 1.0, dashed=True)
+                ax.legend(
+                    handles=[Line2D([], [], color=ORACLE_COLOR, lw=2.0,
+                                    label="decoded (real latent)"),
+                             Line2D([], [], color=GT_COLOR, lw=1.4, ls="--",
+                                    label="actual traffic (GT)")],
+                    loc="upper right", fontsize=10.0, framealpha=0.88,
+                    edgecolor="#c9c9c9")
                 ax.text(0.03, 0.035,
                         "real latent (reference)\n"
-                        "cyan = real decode · dashes = GT",
+                        "decode of the measured future",
                         transform=ax.transAxes, fontsize=13.5, color="#0072B2",
                         bbox=dict(boxstyle="round,pad=0.3", fc="white",
-                                  alpha=0.88))
-                ax.set_title("real BEV, decoded", fontsize=15, pad=5,
+                                  ec="#b9b9b9", lw=0.8, alpha=0.94))
+                ax.set_title("Real BEV, Decoded", fontsize=15, pad=5,
                              color="#0072B2")
             # ego anchor
             ax.plot([0, 0], [0, 1.9], color="#222222", lw=1.6, zorder=6)
@@ -325,40 +336,26 @@ def main():
                              color="#8a8a87", lw=1.4, ls=st)
                 ins.plot(np.arange(1, len(agg["wm"]) + 1), agg["wm"],
                          color="#555555", lw=1.8)
-                ins.text(0.05, 0.06, "gray = aggregate (val) · orange = scene",
+                ins.text(0.05, 0.04, "gray = aggregate (val) · orange = scene",
                          transform=ins.transAxes, fontsize=6.2,
                          color="#444444")
             ins.plot(np.arange(1, K + 1), miou_full, color="#B25A00", lw=2.2)
             ins.set_xlim(1, K)
-            ins.set_ylim(0, 1.0 if agg else
+            ins.set_ylim(-0.14, 1.40 if agg else
                          max(0.05, float(miou_full.max()) * 1.15))
-            ins.plot([kk], [miou_full[kk - 1]], "o", color="#B25A00", ms=6)
-            ins.text(0.03, 0.85, "mIoU (proxy)", transform=ins.transAxes,
-                     fontsize=10.5, color="#774400")
+            ins.plot([kk], [miou_full[kk - 1]], "o", color="#B25A00", ms=6,
+                     mec="white", mew=0.9)
+            ins.text(0.03, 0.82, "mIoU (proxy)", transform=ins.transAxes,
+                     fontsize=10.0, color="#774400",
+                     bbox=dict(boxstyle="round,pad=0.2", fc="white",
+                               ec="none", alpha=0.92))
+            for sp in ins.spines.values():
+                sp.set_color("#b9b9b9"); sp.set_linewidth(0.8)
             badge2 = ""
 
-        title.set_text("BEV world model (nuScenes) — maps + detections  |  "
+        title.set_text("BEV World Model (nuScenes) — Maps + Detections  |  "
                        "t = %.1f s" % (0.5 * (step + 1)))
 
-        if args.arrows and not is_ctx:
-            try:
-                cm_c = _cent(dg["dynamic_real"][step - n_input])
-                cm_n = _cent(dg["dynamic_real"][step - n_input + 1]) \
-                    if step + 1 < n_input + K else None
-                if cm_c is not None and cm_n is not None:
-                    d_ = (float(cm_n[0]) - float(cm_c[0]) * 0,
-                          float(cm_n[1]) - float(cm_c[1]))
-                    yx = (cm_c[0], EXT, cm_c[1], EXT)
-                    for ax_ in (ax_f, ax_r):
-                        ax_.annotate("", xy=(cm_c[0], cm_c[1]),
-                                     xytext=(cm_c[0] + d_[0], cm_c[1] + d_[1]),
-                                     arrowprops=dict(arrowstyle="->",
-                                                     color="#1565C0", lw=2.4),
-                                     zorder=8)
-                        ax_.text(cm_c[0], cm_c[1] + 2.4, "next world shift",
-                                 fontsize=9, color="#1565C0")
-            except Exception as ex:
-                pass
         fig.savefig(frames / ("frame%03d.png" % step), dpi=fig.dpi)
         print("[combo] frame%03d" % step, flush=True)
     plt.close(fig)

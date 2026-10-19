@@ -214,7 +214,7 @@
         </div>
         <p class="cap"><b>Construction street</b> — lane-blocking work zone;
         drift ratio 1.38 (slight motion over-shoot); map mIoU 0.90 → 0.71 within
-        the first 4 s; detections matched up to 11/19 GT-class vehicles &lt; 2 m.</p>
+        the first 4 s; detections matched up to 13/17 GT-class vehicles &lt; 2 m.</p>
       </div>
       <div class="shot" data-shot="s2">
         <div class="plate">
@@ -223,7 +223,7 @@
         </div>
         <p class="cap"><b>Busy intersection</b> — oncoming + parked traffic and
         pedestrians; drift ratio 0.98 (near-perfect motion tracking); matched
-        17/47 at k = 5.</p>
+        25/39 at the first step.</p>
       </div>
       <div class="shot" data-shot="s3">
         <div class="plate">
@@ -235,22 +235,27 @@
       </div>
       <div class="shot" data-shot="s4">
         <div class="plate">
-          <p class="plate-fig">Plate IV — waiting scenes matter too</p>
-          <img class="zoomable" src="assets/maps_crossing_pure.gif" alt="pedestrian crossing rollout">
+          <p class="plate-fig">Plate IV — the copy pole</p>
+          <img class="zoomable" src="assets/hero_combo_crossing.gif" alt="pedestrian crossing rollout">
         </div>
-        <p class="cap"><b>Pedestrian crossing</b> — copy-dominant scene (ᾱ 0.03): the ego waits
-        while a crowd crosses; map-only display — everything shown is decoded,
-        nothing is LiDAR/boxes.</p>
+        <p class="cap"><b>Pedestrian crossing</b> — copy-dominated scene
+        (gate ᾱ = 0.03, selected as the gate-α minimum): the ego waits at a
+        busy intersection while a crowd crosses; the forecast essentially
+        reproduces the scene — matched <b>47/64</b> GT-class vehicles
+        &lt; 2&nbsp;m, map mIoU 0.90 → 0.18 within the first 4&nbsp;s.</p>
       </div>
       <div class="shot" data-shot="s5">
         <div class="plate">
-          <p class="plate-fig">Plate V — the copy/predict mechanism</p>
-          <img class="zoomable" src="assets/maps_gate_pure.gif" alt="gate-alpha drive rollout">
+          <p class="plate-fig">Plate V — the predict pole</p>
+          <img class="zoomable" src="assets/hero_combo_gatealpha.gif" alt="gate-alpha drive rollout">
         </div>
-        <p class="cap"><b>Gate-α drive</b> — maximum-gate scene (ᾱ = 0.71) anchoring the paper's
-        copy/predict story; map-only pure display (no LiDAR/boxes): the
-        forecast follows the moving road structures while persistence
-        freezes (mIoU 0.70 → 0.38 by 3 s).</p>
+        <p class="cap"><b>Gate-α drive</b> — predict-dominated scene
+        (gate ᾱ = 0.71, selected as the gate-α maximum): an open fork while
+        the ego drives — persistence collapses (mIoU 0.70 → 0.38 by
+        3&nbsp;s) while the forecast follows the streaming road structure;
+        the fork carries almost no GT-class traffic near the path (matched
+        1/17), so this plate is about the moving map — detections included
+        in the same duet style.</p>
       </div>
       <div class="shot" data-shot="s6">
         <div class="plate">
