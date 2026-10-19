@@ -199,31 +199,31 @@
   <h2>Interactive showcase — choose a scene</h2>
   <div class="card showcase">
     <div class="chips">
-      <button class="chip on" data-shot="s1">Maps + detections (street)</button>
-      <button class="chip" data-shot="s2">Busy intersection</button>
+      <button class="chip on" data-shot="s2">Busy intersection</button>
+      <button class="chip" data-shot="s1">Maps + detections (street)</button>
       <button class="chip" data-shot="s3">Fast street</button>
       <button class="chip" data-shot="s4">Pedestrian crossing</button>
       <button class="chip" data-shot="s5">Gate-α drive (map-only)</button>
       <button class="chip" data-shot="s6">Paper filmstrip</button>
     </div>
     <div id="shots">
-      <div class="shot on" data-shot="s1">
+      <div class="shot on" data-shot="s2">
         <div class="plate">
-          <p class="plate-fig">Plate I — the world model anticipates the scene</p>
-          <img class="zoomable" src="assets/hero_combo_d5324133.gif" alt="maps + detections rollout">
-        </div>
-        <p class="cap"><b>Construction street</b> — lane-blocking work zone;
-        drift ratio 1.38 (slight motion over-shoot); map mIoU 0.90 → 0.71 within
-        the first 4 s; detections matched up to 13/17 GT-class vehicles &lt; 2 m.</p>
-      </div>
-      <div class="shot" data-shot="s2">
-        <div class="plate">
-          <p class="plate-fig">Plate II — dense traffic</p>
+          <p class="plate-fig">Plate I — dense traffic</p>
           <img class="zoomable" src="assets/hero_combo_f1b7b463.gif" alt="busy intersection rollout">
         </div>
         <p class="cap"><b>Busy intersection</b> — oncoming + parked traffic and
         pedestrians; drift ratio 0.98 (near-perfect motion tracking); matched
         25/39 at the first step.</p>
+      </div>
+      <div class="shot" data-shot="s1">
+        <div class="plate">
+          <p class="plate-fig">Plate II — the world model anticipates the scene</p>
+          <img class="zoomable" src="assets/hero_combo_d5324133.gif" alt="maps + detections rollout">
+        </div>
+        <p class="cap"><b>Construction street</b> — lane-blocking work zone;
+        drift ratio 1.38 (slight motion over-shoot); map mIoU 0.90 → 0.71 within
+        the first 4 s; detections matched up to 13/17 GT-class vehicles &lt; 2 m.</p>
       </div>
       <div class="shot" data-shot="s3">
         <div class="plate">

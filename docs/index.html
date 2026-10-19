@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Frozen BEV World Model — Project Page (IEEE IV 2027)</title>
+<title>Frozen BEV World Model — Project Page</title>
 <style>
   :root {
     --bg: #fbfbfa; --bg2: #ffffff; --ink: #111111; --muted: #6d6d6d;
@@ -168,7 +168,6 @@
     <div class="reveal-icons" style="opacity:0; animation: rise2 .8s .9s ease forwards">
       <span class="pill">🚗 BEV World Model</span>
       <span class="pill">Perception stack stays frozen</span>
-      <span class="pill">IEEE IV 2027</span>
       <span class="pill"><a href="https://github.com/UniBwTAS/frozen-bev-world-model" style="color:inherit">Code ↗</a></span>
     </div>
     <h1 aria-label="Extending BEV Perception into the Future: Reusing the Frozen Perception Stack">
@@ -201,29 +200,29 @@
   <h2>Interactive showcase — choose a scene</h2>
   <div class="card showcase">
     <div class="chips">
-      <button class="chip on" data-shot="s1">Maps + detections (street)</button>
-      <button class="chip" data-shot="s2">Busy intersection</button>
+      <button class="chip on" data-shot="s2">Busy intersection</button>
+      <button class="chip" data-shot="s1">Maps + detections (street)</button>
       <button class="chip" data-shot="s3">Fast street</button>
       <button class="chip" data-shot="s6">Paper filmstrip</button>
     </div>
     <div class="shots">
-      <div class="shot on" data-shot="s1">
+      <div class="shot on" data-shot="s2">
         <div class="plate">
-          <p class="plate-fig">Plate I — the world model anticipates the scene</p>
-          <img class="zoomable" src="assets/hero_combo_d5324133.gif" alt="maps + detections rollout">
-        </div>
-        <p class="cap"><b>Construction street</b> — lane-blocking work zone;
-        drift ratio 1.38 (slight motion over-shoot); map mIoU 0.90 → 0.71 within
-        the first 4 s; detections matched up to 13/17 GT-class vehicles &lt; 2 m.</p>
-      </div>
-      <div class="shot" data-shot="s2">
-        <div class="plate">
-          <p class="plate-fig">Plate II — dense traffic</p>
+          <p class="plate-fig">Plate I — dense traffic</p>
           <img class="zoomable" src="assets/hero_combo_f1b7b463.gif" alt="busy intersection rollout">
         </div>
         <p class="cap"><b>Busy intersection</b> — oncoming + parked traffic and
         pedestrians; drift ratio 0.98 (near-perfect motion tracking); matched
         25/39 at the first step.</p>
+      </div>
+      <div class="shot" data-shot="s1">
+        <div class="plate">
+          <p class="plate-fig">Plate II — the world model anticipates the scene</p>
+          <img class="zoomable" src="assets/hero_combo_d5324133.gif" alt="maps + detections rollout">
+        </div>
+        <p class="cap"><b>Construction street</b> — lane-blocking work zone;
+        drift ratio 1.38 (slight motion over-shoot); map mIoU 0.90 → 0.71 within
+        the first 4 s; detections matched up to 13/17 GT-class vehicles &lt; 2 m.</p>
       </div>
       <div class="shot" data-shot="s3">
         <div class="plate">
@@ -354,20 +353,18 @@
   <p class="kick">Artifacts</p>
   <h2>Paper &amp; code</h2>
   <div class="card">
-    <p>Paper: preprint will be linked here (IEEE Intelligent Vehicles
-    Symposium 2027) · Code: <a
+    <p>Paper: preprint will be linked here · Code: <a
     href="https://github.com/UniBwTAS/frozen-bev-world-model">github.com/UniBwTAS/frozen-bev-world-model</a>
     · An annotated double-blind review version of this page is available
     under <i>review.html</i> in the repository.</p>
-    <!-- Title/venue must track the \ivtitle / IV 2027 status; authors above
-         must match the paper's author order. -->
-    <p style="color:var(--muted); font-size:14px">@inproceedings{pohl2027frozen,
-      title={{Extending BEV Perception into the Future: Reusing Frozen
-        Perception Stack}},
-      author={Pohl, Leon and Mann, Vincent and Luettel, Thorsten and
-        Wohning, Andreas and Maehlisch, Mirko},
-      booktitle={IEEE Intelligent Vehicles Symposium (IV)},
-      year={2027}}</p>
+    <!-- Title must track the \ivtitle; authors above must match the paper's
+         author order. The paper venue is deliberately not stated here until
+         the paper is accepted; until then the code artifact is citable as
+         below (keep in sync with README.md). -->
+    <p style="color:var(--muted); font-size:14px">frozen-bev-world-model:
+      Forecasting fused BEV latents on a frozen BEVFusion perception stack.
+      L. Pohl, V. Mann, 2026.
+      github.com/UniBwTAS/frozen-bev-world-model</p>
   </div>
 </section>
 

@@ -7,13 +7,14 @@ forecast without retraining the perception system.
 
 This is the **public companion repository** of the paper
 *"Extending BEV Perception into the Future: Reusing Frozen Perception Stack"*
-(IEEE Intelligent Vehicles Symposium, IV 2027). It provides the demo media,
+(preprint; the venue will be stated here once the paper is accepted). It
+provides the demo media,
 the self-contained demo pipeline, and the full source code with an
 English packaging (semantics unchanged).
 
 ## Demo
 
-![BEV world model map forecast](img/maps_gate_pure.gif)
+![Busy intersection rollout: forecast maps + detections](img/forecast_f1b7b463.gif)
 
 Duets of six nuScenes cameras (2 Hz) and the decoded BEV grids. Every
 colored element in the duet GIFs is decoded — maps (left) = the world
