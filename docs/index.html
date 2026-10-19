@@ -203,6 +203,8 @@
       <button class="chip on" data-shot="s2">Busy intersection</button>
       <button class="chip" data-shot="s1">Maps + detections (street)</button>
       <button class="chip" data-shot="s3">Fast street</button>
+      <button class="chip" data-shot="s6">Downtown street</button>
+      <button class="chip" data-shot="s7">Roadworks street</button>
     </div>
     <div class="shots">
       <div class="shot on" data-shot="s2">
@@ -230,6 +232,30 @@
         </div>
         <p class="cap"><b>Fast street</b> — the fastest scene: slight overshoot
         (drift ratio 1.72) honestly reflects the speed-extrapolation limit.</p>
+      </div>
+      <div class="shot" data-shot="s6">
+        <div class="plate">
+          <p class="plate-fig">Plate VI — mixed traffic</p>
+          <img class="zoomable" src="assets/hero_combo_3e8750f3.gif" alt="downtown street rollout">
+        </div>
+        <p class="cap"><b>Downtown street</b> — inner-city traffic with oncoming
+        cars, parked rows and a crosswalk crowd; a mid-band gate scene
+        (ᾱ = 0.44, between the copy and predict poles of the next card);
+        drift ratio 0.46 (moderate motion deviation); map mIoU 0.84&nbsp;→
+        0.29 within the first 4&nbsp;s; detections matched up to <b>17/36</b>
+        GT-class vehicles &lt; 2&nbsp;m.</p>
+      </div>
+      <div class="shot" data-shot="s7">
+        <div class="plate">
+          <p class="plate-fig">Plate VII — the tracking case</p>
+          <img class="zoomable" src="assets/hero_combo_134c7f63.gif" alt="roadworks street rollout">
+        </div>
+        <p class="cap"><b>Roadworks street</b> — cone-lined work zone with waiting
+        pedestrians (ᾱ = 0.57, predict side); drift ratio <b>0.13</b> — the
+        tightest forecast-to-real motion tracking on the page; map mIoU
+        0.76&nbsp;→&nbsp;0.52 within the first 4&nbsp;s while persistence
+        collapses (0.44 → 0.09); detections matched up to <b>9/16</b>
+        GT-class vehicles &lt; 2&nbsp;m.</p>
       </div>
     </div>
     <div class="legend">

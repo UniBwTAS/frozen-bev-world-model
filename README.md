@@ -37,6 +37,8 @@ cover the first 4 s of a k = 21 rollout.
 | `img/forecast_029af235.gif` | fast street (drift 1.72) | maps + detections, speed-extrapolation limit |
 | `img/forecast_gatealpha.gif` | gate-α maximum (ᾱ 0.71) | copy/predict predict pole; moving map |
 | `img/forecast_crossing.gif` | gate-α minimum (ᾱ 0.03) | copy pole; matched up to 47/64 |
+| `docs/assets/hero_combo_3e8750f3.gif` | downtown street (ᾱ 0.44, drift 0.46) | duet (webpage Plate VI); mIoU 0.84 → 0.29 in 4 s; matched up to 17/36 |
+| `docs/assets/hero_combo_134c7f63.gif` | roadworks street (ᾱ 0.57, drift 0.13) | duet (webpage Plate VII); tightest motion tracking; mIoU 0.76 → 0.52 in 4 s; matched up to 9/16 |
 | `img/maps_gate_pure.gif` / `img/maps_crossing_pure.gif` | gate | pure map-only variants (no boxes) |
 | `img/rollout_filmstrip.png` | dynamic | paper-style filmstrip (context + k = 1..4) |
 
