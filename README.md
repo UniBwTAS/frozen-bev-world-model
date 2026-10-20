@@ -48,6 +48,27 @@ cover the first 4 s of a k = 21 rollout.
 | `img/maps_gate_pure.gif` / `img/maps_crossing_pure.gif` | gate | pure map-only variants (no boxes) |
 | `img/rollout_filmstrip.png` | dynamic | paper-style filmstrip (context + k = 1..4) |
 
+## Rendering qualitative assets
+
+`scripts/render_qualitative.py` is the single source for all qualitative
+forecast renders: the paper's static strip (`--artifacts figure`) and the
+animated web frames (`--artifacts frames`, with an ffmpeg assembly for
+GIF/H.265). Both read the same STYLE block — matte segmentation palette,
+`#FEFCFE` backdrop, 0.84 map opacity with sub-pixel edge upsampling, and
+the detection/reference line colors — so arti facts match by construction.
+Inputs are the world-model NPZ chain (seg rollout + decoded detections):
+
+```
+python3 scripts/render_qualitative.py --artifacts all \
+    --seg-npz seg_f1b7b463.npz \
+    --pred-npz dets_f1b7b463_pred.npz --real-npz dets_f1b7b463_real.npz \
+    --data-root /path/to/nuscenes/complete \
+    --tokens tokens_f1b7b463.txt \
+    --figure-out figs/qualitative_forecast.png \
+    --frames-out build/qualitative_frames \
+    --gif-out build/qualitative.gif
+```
+
 ## Headline results (full validation, against nuScenes annotations)
 
 | Metric | Persistence | World model | Real latent (reference) |
