@@ -24,7 +24,7 @@ decay visible.
 Input: NPZ from scripts/rollout_compute.py.
 Output: <out>/hero_<name>.mp4 (2 fps, H.264 yuv420p) + frames dir.
 
-    python3 scripts/render_hero.py --npz iv_rollout.npz \
+    python3 scripts/render_hero.py --npz rollout.npz \
         --data-root /data/nuscenes/complete --out img --name dynamic
 """
 import argparse

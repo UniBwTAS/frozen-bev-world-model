@@ -22,7 +22,7 @@ Typical call (paths are machine-specific):
         --pkgs-root  /data/nuscenes/latents_packed_fp16 \
         --checkpoint checkpoints/00_BEST/seg/best_miou.pt \
         --seg-head   /data/bevfusion-seg.pth \
-        --k 21 --out iv_rollout.npz
+        --k 21 --out rollout.npz
 
 Note: latents are read from the memmap packs (pack_latents.py in the root,
 thesis repo). If the raw .npy latent folder no longer exists, a stub folder
@@ -69,7 +69,7 @@ def main():
     ap.add_argument("--tokens-file", default=None,
                     help="optional: fix the window tokens (one per line, "
                          "frame order); overrides gate scene selection")
-    ap.add_argument("--out", default="iv_rollout.npz")
+    ap.add_argument("--out", default="rollout.npz")
     args = ap.parse_args()
 
     repo = Path(args.repo_root).resolve()

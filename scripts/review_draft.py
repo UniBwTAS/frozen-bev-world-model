@@ -22,7 +22,7 @@ Everything is pure analysis of EXISTING dumps (no retraining, no decoding):
                         disclosed drift-ratio rule.
   5. runtime.png      — resource accounting from the paper's own table.
 
-    python3 scripts/review_draft.py --out /home/vima/iv_demo/review
+    python3 scripts/review_draft.py --out /home/vima/demo/review
 """
 import argparse
 import json
@@ -244,7 +244,7 @@ def ego_iou_dyn(warped, tgt):
 
 # ------------------------------------------------------------- figure 3
 def fig_cross_decode(out):
-    scene = np.load(SMOKE / "iv_rollout_detscene.npz", allow_pickle=True)
+    scene = np.load(SMOKE / "rollout_detscene.npz", allow_pickle=True)
     tokens = [str(t) for t in scene["dynamic_tokens"]]
     n_input = int(scene["n_input"])
     j = 4                                   # 2.0 s forecast step index (1bs)
@@ -339,7 +339,7 @@ def fig_best_worst(out):
     eg = [agg_e[str(k)]["pers_ego"] for k in agg_e]
 
     scenes = [("f1b7b463 (drift 0.98)", SMOKE / "seg_f1b7b463.npz", "#009E73"),
-              ("d5324133 (drift 1.38)", SMOKE / "iv_rollout_detscene.npz",
+              ("d5324133 (drift 1.38)", SMOKE / "rollout_detscene.npz",
                "#B25A00"),
               ("029af235 (drift 1.72)", SMOKE / "seg_029af235.npz",
                DET)]
@@ -420,7 +420,7 @@ def fig_runtime(out):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default="/home/vima/iv_demo/review")
+    ap.add_argument("--out", default="/home/vima/demo/review")
     args = ap.parse_args()
     outd = Path(args.out); outd.mkdir(exist_ok=True, parents=True)
     numbers = {}

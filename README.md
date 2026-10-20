@@ -114,13 +114,13 @@ python3 scripts/rollout_compute.py \
     --pkgs-root  path/to/nuscenes/latents_packed_fp16 \
     --checkpoint checkpoints/00_BEST/seg/best_miou.pt \
     --seg-head   path/to/bevfusion-seg.pth \
-    --k 21 --out iv_rollout.npz
+    --k 21 --out rollout.npz
 
 # 2a. Paper-style filmstrip (PNG/PDF)
-python3 scripts/render_filmstrip.py --npz iv_rollout.npz --out img
+python3 scripts/render_filmstrip.py --npz rollout.npz --out img
 
 # 2b. Hero video (6 cameras + LiDAR-BEV duett, MP4)
-python3 scripts/render_hero.py --npz iv_rollout.npz \
+python3 scripts/render_hero.py --npz rollout.npz \
     --data-root path/to/nuscenes/complete --out img
 ```
 

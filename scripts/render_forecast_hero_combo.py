@@ -20,7 +20,7 @@ paper figures (filmstrip), never in these animated GIFs. Ego = sketched at
 (0,0), front = up; masks np.rot90(k=1) on ±50 m (200 px seg grid at 0.5 m/px).
 
     python3 scripts/render_forecast_hero_combo.py \
-        --seg-npz iv_rollout_detscene.npz \
+        --seg-npz rollout_detscene.npz \
         --pred-npz det_scene2_pred.npz --real-npz det_scene2_real.npz \
         --data-root path/to/nuscenes/complete --out img \
         [--agg-json agg_decay.json]   # aggregate decay curves in the sparkline

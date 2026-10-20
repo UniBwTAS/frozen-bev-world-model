@@ -14,7 +14,7 @@ rollout k = 1..K with an mIoU overlay per step (proxy style). 2 fps
 Orientation: ego front = up (rot90 k = 1, verified against the thesis
 renders).
 
-    python3 scripts/render_video.py --npz iv_rollout.npz --out img --fps 2
+    python3 scripts/render_video.py --npz rollout.npz --out img --fps 2
 """
 import argparse
 import subprocess
@@ -78,7 +78,7 @@ def render(d, name, out, fps=2):
         fig.savefig(frames / f"frame{step:03d}.png", dpi=fig.dpi)
         print(f"[video] frame{step:03d}", flush=True)
 
-    mp4 = Path(out) / f"iv_rollout_{name}.mp4"
+    mp4 = Path(out) / f"rollout_{name}.mp4"
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error",
                     "-framerate", str(fps), "-i", str(frames / "frame%03d.png"),
                     "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "20",

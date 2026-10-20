@@ -6,9 +6,9 @@
 Reads the NPZ produced by scripts/rollout_compute.py and builds the compact
 filmstrip figure: rows = camera (real) | BEV real (reference) |
 BEV forecast (world model); columns = context + k = 1..k_show.
-Output: iv_demo_<name>_3row.{pdf,png} and iv_demo_<name>_2row.{pdf,png}.
+Output: demo_<name>_3row.{pdf,png} and demo_<name>_2row.{pdf,png}.
 
-    python3 scripts/render_filmstrip.py --npz iv_rollout.npz --out img
+    python3 scripts/render_filmstrip.py --npz rollout.npz --out img
 
 Style: Okabe-Ito (color-vision safe); ego front = up (rot90 k = 1,
 verified in the thesis renders). The mIoU annotations are proxy style
@@ -84,9 +84,9 @@ def main():
     d = np.load(args.npz, allow_pickle=True)
     for name in ("dynamic", "static"):
         if f"{name}_pred" in d:
-            build(d, name, f"iv_demo_{name}_3row", ("cam", "real", "pred"),
+            build(d, name, f"demo_{name}_3row", ("cam", "real", "pred"),
                   args.k_show, args.out)
-            build(d, name, f"iv_demo_{name}_2row", ("cam", "pred"),
+            build(d, name, f"demo_{name}_2row", ("cam", "pred"),
                   args.k_show, args.out)
 
 
