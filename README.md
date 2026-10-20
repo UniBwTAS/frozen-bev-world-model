@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="checkpoints/README.md"><img src="https://img.shields.io/badge/%E2%AC%87_Weights-seg_%2B_det_checkpoints_(2%C3%9773_MB)-blue" alt="Download the trained world-model checkpoints"></a>
-  <a href="https://unibwtas.github.io/frozen-bev-world-model/"><img src="https://img.shields.io/badge/%F0%9F%8C%90_Project_page-%20frozen--bev--world--model-green" alt="Open the interactive project page"></a>
+  <a href="https://anonymous.4open.science/w/9b2A/"><img src="https://img.shields.io/badge/%F0%9F%8C%90_Project_page-%20frozen--bev--world--model-green" alt="Open the interactive project page"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow" alt="MIT license"></a>
 </p>
 
