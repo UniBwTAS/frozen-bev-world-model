@@ -1,32 +1,36 @@
 # Trained world-model checkpoints
 
 The two final operating points of the latent forecaster — the exact
-weights behind the paper's numbers. Both forecast the next fused BEV
-latent (+0.5 s) of the frozen BEVFusion stack and are decoded by the
-**original frozen heads** (no head retraining here; the separate
-head-adaptation diagnostic is described in the paper but its adapted
-heads are not redistributed).
+weights behind the paper's numbers.
+
+**Release policy:** the checkpoint files (73 MB each) are published with
+the camera-ready version, after acceptance. During double-blind review
+they cannot be shipped through the anonymized mirror: the anonymous
+hosting pipeline does not support files of this size, and a
+non-anonymized download link would break the review's anonymization.
+The measured evaluation records below are included instead, so the
+reported numbers stay inspectable during review.
 
 | Checkpoint | Task / objective | Reported quality |
 |---|---|---|
-| [`seg/best_miou.pt`](seg/best_miou.pt) | map segmentation, Smooth-L1 + channel-spread | proxy mIoU **0.6946** (5,743 windows) · annotation mIoU **0.5898** (full validation) |
-| [`det/best_val_loss.pt`](det/best_val_loss.pt) | 3D detection, Smooth-L1 + spread + energy (α=4) + cosine (0.1) | annotation mAP **0.3752** (mean over two seeds) |
+| `seg/best_miou.pt` | map segmentation, Smooth-L1 + channel-spread | proxy mIoU **0.6946** (5,743 windows) · annotation mIoU **0.5898** (full validation) |
+| `det/best_val_loss.pt` | 3D detection, Smooth-L1 + spread + energy (α=4) + cosine (0.1) | annotation mAP **0.3752** (mean over two seeds) |
 
 Reference configs: `configs/config_seg_beispiel.yaml` and
 `configs/config_det_beispiel.yaml` (best operating points).
 
-Measured runs: [`eval/miou_fullval.json`](eval/miou_fullval.json),
+Measured runs (included): [`eval/miou_fullval.json`](eval/miou_fullval.json),
 [`eval/det_eval_d5ac_energycos.json`](eval/det_eval_d5ac_energycos.json),
 [`eval/det_eval_d5ac_s43.json`](eval/det_eval_d5ac_s43.json).
 
-## Checksums
+## Checksums (of the files to be released)
 
 ```
 38db8063f59788197afa503f965c8dda  seg/best_miou.pt
 935fec0a838a00448ac94347b5499815  det/best_val_loss.pt
 ```
 
-## Loading
+## Loading (once released)
 
 `train_linux.py` checkpoint format:
 
@@ -53,10 +57,11 @@ README for what is excluded and how latents are extracted.
 - The segmentation checkpoint is the thesis operating point; the
   detection checkpoint is the post-thesis energy-plus-cosine
   configuration used for the paper's detection numbers.
-- Both files are the exact artifacts from training (no post-processing);
-  single-run results are subject to the seed variation band reported in
-  the paper.
+- The released files are the exact artifacts from training (no
+  post-processing); single-run results are subject to the seed
+  variation band reported in the paper.
 
 ## License
 
-Released under the repository's MIT license (own trained weights).
+Upon release, the checkpoints carry the repository's MIT license (own
+trained weights).

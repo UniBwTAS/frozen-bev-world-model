@@ -127,9 +127,10 @@ python3 scripts/render_hero.py --npz iv_rollout.npz \
 What is **not** in this repository (license): nuScenes data, BEVFusion
 weights (`bevfusion-seg.pth` / `bevfusion-det.pth`, official
 [mit-han-lab/bevfusion](https://github.com/mit-han-lab/bevfusion) releases),
-the adapted-head variants of the head-adaptation diagnostic, and packed
-latents. The trained world-model checkpoints **are** included — see
-[checkpoints/README.md](checkpoints/README.md). Latents are extracted
+the adapted-head variants of the head-adaptation diagnostic, the trained
+world-model checkpoint files (released after acceptance — see
+[checkpoints/README.md](checkpoints/README.md)), and packed
+latents. Latents are extracted
 with the `latent_saver` hook (`SAVE_BEV_LATENTS`, documented under
 `bevfusion_patch/` in this repository) and packed with
 `Code/pack_latents.py`; annotation-metric evaluation runs via latent
