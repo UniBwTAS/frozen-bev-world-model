@@ -1,0 +1,6 @@
+{
+ "mAP": 0.3790,
+ "NDS": 0.4965,
+ "protokoll": "Injection frozen TransFusion, Full-Val 6019, best_val_loss",
+ "befund": "D5a+cos-Kombi (energy_alpha=4 + lambda_cos=0.1 auf Det-Minimal): NEUER DET-SPITZENWERT. +0.0526 vs Minimal 0.3264; +0.0103 vs bisherigen Top-Wert Minimal-MSE 0.3687 (ueber der 2x-Schwelle 0.0088, Einzel-Seed); +0.0186 vs d5a_energy allein 0.3604 und +0.0121 vs Minimal+cos 0.3669 -> Energie-Gewichtung und cos ADDIEREN sich (anders als cos+grad in D4). Messauftrag-Regel 'bei Anschlagen Kombi mit cos' bestaetigt. VORBEHALT: 1 Seed; Seed-Replikat waere fuer eine Betriebspunkt-Aussage noetig (Cluster-Budget-Entscheidung beim Nutzer)."
+}

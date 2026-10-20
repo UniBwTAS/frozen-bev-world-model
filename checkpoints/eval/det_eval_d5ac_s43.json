@@ -1,0 +1,6 @@
+{
+ "mAP": 0.3714,
+ "NDS": 0.4904,
+ "protokoll": "Injection frozen TransFusion, Full-Val 6019, best_val_loss, seed 43",
+ "befund": "d5ac-Seed-43-Replikat BESTAETIGT den Spitzenwert: s42 0.3790 / s43 0.3714, Mittel 0.3752, Spannweite 0.0076 (< 2x-Schwelle 0.0088). Entscheidungsregel (vorab in TASK31-Bericht festgelegt): Mittel 0.3752 > Minimal-MSE-Mittel 0.3657 + 0.0088 = 0.3745 -> ERFUELLT; zudem gleiches Vorzeichen in beiden Seeds (+0.0103 / +0.0088 je Seed vs Minimal-MSE). BETRIEBSPUNKT DET (final): Minimal + energy_alpha=4 + lambda_cos=0.1 (smooth_l1-Basis), zwei-Seed-Mittel mAP 0.3752. Checkpoint (Seed 42) -> checkpoints/00_BEST/det/."
+}

@@ -1,0 +1,18 @@
+{
+  "checkpoint": "checkpoints/task16b/headline/smoothl1_minimal/phase2/best_miou.pt",
+  "config": "configs/task16b/headline/config_headline_smoothl1_minimal.yaml",
+  "phase": "cell",
+  "n_samples": 5743,
+  "full_val": true,
+  "mIoU": 0.6946,
+  "per_class": {
+    "drivable_area": 0.8973,
+    "ped_crossing": 0.6289,
+    "walkway": 0.7336,
+    "stop_line": 0.5547,
+    "carpark_area": 0.6879,
+    "divider": 0.6388
+  },
+  "eval_time_sec": 239.4,
+  "timestamp": "2026-07-19 10:47:08"
+}

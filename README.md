@@ -1,5 +1,7 @@
 # BEV World Model — Forecasting Fused BEV Latents (nuScenes)
 
+<p align="center"><a href="checkpoints/README.md"><img src="https://img.shields.io/badge/%E2%AC%87_Weights-seg_%2B_det_checkpoints_(2%C3%9773_MB)-blue" alt="Download the trained world-model checkpoints"></a></p>
+
 A compact Transformer forecasts the next fused bird's-eye-view (BEV) latent
 of a frozen BEVFusion perception stack 0.5 s ahead from three preceding
 latents; the original frozen segmentation and detection heads decode the
@@ -121,7 +123,9 @@ python3 scripts/render_hero.py --npz iv_rollout.npz \
 What is **not** in this repository (license): nuScenes data, BEVFusion
 weights (`bevfusion-seg.pth` / `bevfusion-det.pth`, official
 [mit-han-lab/bevfusion](https://github.com/mit-han-lab/bevfusion) releases),
-trained world-model checkpoints, and packed latents. Latents are extracted
+the adapted-head variants of the head-adaptation diagnostic, and packed
+latents. The trained world-model checkpoints **are** included — see
+[checkpoints/README.md](checkpoints/README.md). Latents are extracted
 with the `latent_saver` hook (`SAVE_BEV_LATENTS`, documented under
 `bevfusion_patch/` in this repository) and packed with
 `Code/pack_latents.py`; annotation-metric evaluation runs via latent
