@@ -411,7 +411,7 @@ def render_frames(sc, fps, k_shown, frames_dir, no_dets=False):
             for sp in ins.spines.values():
                 sp.set_color("#b9b9b9"); sp.set_linewidth(0.8)
 
-        title.set_text("Maps + detections rollout — nuScenes  |  "
+        title.set_text("Map Segmentation + Detection Rollout — nuScenes  |  "
                        "t = %.1f s" % (0.5 * (step + 1)))
         fig.savefig(frames_dir / ("frame%03d.png" % step), dpi=fig.dpi)
         print("[frames] frame%03d" % step, flush=True)
