@@ -51,11 +51,22 @@ cover the first 4 s of a k = 21 rollout.
 ## Rendering qualitative assets
 
 `scripts/render_qualitative.py` is the single source for all qualitative
-forecast renders: the paper's static strip (`--artifacts figure`) and the
-animated web frames (`--artifacts frames`, with an ffmpeg assembly for
-GIF/H.265). Both read the same STYLE block — matte segmentation palette,
-`#FEFCFE` backdrop, 0.84 map opacity with sub-pixel edge upsampling, and
-the detection/reference line colors — so arti facts match by construction.
+forecast renders. Two artifacts share one STYLE block — matte segmentation
+palette, `#FEFCFE` backdrop, 0.80 map opacity with sub-pixel edge
+upsampling, detection/reference line colors — so every render matches by
+construction:
+
+- `--artifacts figure` — the paper's approved five-panel strip (camera |
+  forecast steps | measured reference); layout and badges byte-frozen to
+  the published `figs/qualitative_forecast.png`.
+- `--artifacts frames` — one PNG per rollout step in the six-camera rig
+  duet layout (geometry shared with `render_forecast_hero_combo.py`,
+  with the shared matte map layer).
+- `--artifacts gif` — assembles the web GIF + a full-range H.265 MP4
+  directly from those PNG frames with a two-pass ffmpeg palette. The GIF
+  palette is generated from the rendered frames themselves; no lossy
+  intermediate MP4 exists in the color path.
+
 Inputs are the world-model NPZ chain (seg rollout + decoded detections):
 
 ```
@@ -63,11 +74,16 @@ python3 scripts/render_qualitative.py --artifacts all \
     --seg-npz seg_f1b7b463.npz \
     --pred-npz dets_f1b7b463_pred.npz --real-npz dets_f1b7b463_real.npz \
     --data-root /path/to/nuscenes/complete \
-    --tokens tokens_f1b7b463.txt \
+    --steps 1,3,6 --k-shown 8 \
     --figure-out figs/qualitative_forecast.png \
     --frames-out build/qualitative_frames \
     --gif-out build/qualitative.gif
 ```
+
+The rollout NPZ is produced by `scripts/rollout_compute.py` and the decoded
+detections by `scripts/rollout_det_compute.py`; `--agg-json agg_decay.json`
+(optionally) adds validation-wide aggregate decay curves to the corner
+sparkline.
 
 ## Headline results (full validation, against nuScenes annotations)
 

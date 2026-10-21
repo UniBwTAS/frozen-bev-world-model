@@ -1,30 +1,37 @@
 # SPDX-FileCopyrightText: 2026 Leon Pohl <leon.pohl@unibw.de>
+#
 # SPDX-License-Identifier: MIT
-"""render_qualitative.py — single-source renderer for every qualitative
-forecast asset, so the paper figure and the animated GIFs share identical
-color semantics by construction.
+"""render_qualitative.py — single source for the qualitative forecast assets.
 
-One STYLE block defines the look (matte segmentation palette, backdrop,
-map opacity, detection/reference line colors, legend rows). Two artifacts
-can be produced from the same NPZ inputs:
+Two artifacts from one STYLE block, so the paper figure and the animated
+web GIFs share identical map colors by construction:
 
-  --artifacts figure   static strip for the paper (camera + forecast
-                       rollouts at +0.5/+1.5/+3.0 s + a measured-future
-                       reference panel + the two-row legend)
-  --artifacts frames   one PNG frame per forecast step for the web duet
-                       animation (camera-rig layout comes from
-                       render_forecast_hero_combo.py; this script emits the
-                       same panels/colors in duet layout) and, with --gif,
-                       assembles them via ffmpeg (GIF + H.265/yuv444p
-                       full-range MP4)
+  --artifacts figure   approved five-panel strip (camera | forecast steps |
+                       measured reference) — layout copied 1:1 from the
+                       render that produced the committed paper figure
+                       (measured reference: figs/qualitative_forecast.png);
+                       fonts, margins, badges and legend rows unchanged.
+  --artifacts frames   one PNG per step in the six-camera-rig duet layout —
+                       geometry copied 1:1 from render_forecast_hero_combo.py
+                       (rig rect grid, corner sparkline, honest badges); the
+                       only change is the map layer: the shared matte map
+                       below replaces combo's raw color overlay.
+  --gif (with frames)  assembles GIF + full-range H.265 MP4 directly from the
+                       PNG frames (two-pass palette). No intermediate lossy
+                       MP4 anything — the old chain encoded yuv420 first and
+                       quantized from that, which is where the color drift
+                       against the paper figure came from.
 
-Inputs are the world-model NPZ chain used everywhere else:
-seg rollout NPZ + decoded detection NPZs (pred/real) + the nuScenes data
-root; --tokens fixes the forecast window.
-
-Documented in the companion README (Rendering section).
+Inputs: seg rollout NPZ + decoded detection NPZs (pred/real) + nuScenes root.
+    python3 scripts/render_qualitative.py \
+        --artifacts all \
+        --seg-npz seg_<scene>.npz \
+        --pred-npz dets_<scene>_pred.npz --real-npz dets_<scene>_real.npz \
+        --data-root path/to/nuscenes/complete \
+        [--agg-json agg_decay.json] [--steps 1,3,6] [--k-shown 8]
 """
 import argparse
+import json
 import pickle
 import subprocess
 import sys
@@ -33,295 +40,414 @@ from pathlib import Path
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
 
-# ----------------------------------------------------------------------------
-# STYLE — the single source of truth for all qualitative forecast renders
-# ----------------------------------------------------------------------------
-MATTE_PALETTE = ["#D39D3A", "#7BA7C7", "#6BA78B", "#E8D27D", "#407095", "#BA561B"]
-MAP_CLASSES = ["drivable area", "pedestrian crossing", "walkway",
-               "stop line", "carpark area", "divider"]
-BACKDROP = "#FEFCFE"          # no-data backdrop (matches paper + web)
-MAP_ALPHA = 0.84              # map-over-backdrop opacity (matte, no haze)
-UPSCALE = 6                   # sub-pixel raster supersampling (crisp edges)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import render_forecast_hero_combo as R   # noqa: E402  (shared drawing helpers)
+
+# ---------------------------------------------------------------------------
+# STYLE — single source of truth for every qualitative forecast render.
+# Matte segmentation palette baked over the warm cream backdrop (#FEFCFE):
+#   drivable #D39D3A · ped. crossing #7BA7C7 · walkway #6BA78B
+#   stop line #E8D27D · carpark #407095 · divider #BA561B
+# The combo module's palette is overridden in place so its box/line colors
+# and the GIF matte look stay byte-consistent everywhere.
+# ---------------------------------------------------------------------------
+R.OI[:] = ["#D39D3A", "#7BA7C7", "#6BA78B", "#E8D27D", "#407095", "#BA561B"]
+CREAM = np.array([0.996, 0.988, 0.996])   # BEV backdrop #FEFCFE (user-provided)
+GIF_SCALE = 0.42   # effective raster scale of the web GIFs (soft pastel cells)
+SCORE = 0.2
+XLIM = 30.5        # zoomed corridor (portrait 61 x 100 m slot)
+YLIM = 50.0
 EGO_COLOR = "#222222"
-DET_COLOR = "#FF3D3D"         # forecast detections (red)
-ORACLE_COLOR = "#00B7EB"      # measured detections (cyan)
-GT_COLOR = "#444444"          # ground-truth boxes (dashed gray)
-LEGEND_DETECTIONS = [
-    (EGO_COLOR, "ego vehicle", False),
-    (DET_COLOR, "forecast (decoded)", False),
-    (ORACLE_COLOR, "measured (decoded)", False),
-    (GT_COLOR, "ground truth", True),
-]
-CREAM = None                  # resolved from BACKDROP at render time
-XHALF = 30.5                  # portrait BEV crop for the duet frames
-SCORE = 0.2                   # detection score threshold
+GT_COLOR = "#444444"
+EDGE_COLOR = "#222222"
 
 
-def _init_colors():
-    global CREAM
-    import matplotlib.colors as mc
-    CREAM = np.array(mc.to_rgb(BACKDROP))
+def upmask(m, f=6):
+    """Nearest 6x supersampling: renders the 0.5 m cells as sub-pixel tiles."""
+    return np.repeat(np.repeat(m, f, axis=1), f, axis=2)
 
 
-# ----------------------------------------------------------------------------
-# shared drawing (identical for both artifacts)
-# ----------------------------------------------------------------------------
-def upscale(mask, f=UPSCALE):
-    return np.repeat(np.repeat(mask, f, axis=1), f, axis=2)
-
-
-def map_layer(mask):
-    """Baked (opaque) matte map layer: alpha MAP_ALPHA over BACKDROP."""
-    import matplotlib.colors as mc
-    from pathlib import Path as _P
-    sys.path.insert(0, str(_P(__file__).resolve().parent))
-    import render_forecast_hero_combo as R
-    rgba = R.mask_img(upscale(mask), MAP_ALPHA)
+def matte_map(m):
+    """GIF-grade raster: downscale the class overlay to the GIF's effective
+    resolution, then bilinear upscaled display gives the soft pastel edges
+    of the animated GIFs while boxes/text stay sharp."""
+    up = upmask(m)
+    nh = max(2, int(up.shape[1] * GIF_SCALE))
+    nw = max(2, int(up.shape[2] * GIF_SCALE))
+    from PIL import Image as _I
+    lo = np.zeros((up.shape[0], nh, nw), dtype=bool)
+    for c in range(up.shape[0]):
+        lo[c] = np.array(_I.fromarray(up[c].astype(np.uint8) * 255)
+                         .resize((nw, nh), _I.NEAREST)) > 127
+    rgba = R.mask_img(lo, 0.80)
     a = rgba[..., 3:4]
-    return np.clip(rgba[..., :3] * a + (1 - a) * CREAM, 0, 1)
+    rgb = (rgba[..., :3] * a) + (1 - a) * CREAM
+    return np.clip(rgb, 0, 1)
 
 
-def draw_map(ax, mask, extent, red=None, cyan=None, gt=None, lw=1.6):
-    import matplotlib.pyplot as plt
-    x0, x1 = extent
-    ax.imshow(map_layer(mask), extent=(x0, x1, x1, x0),
-              interpolation="nearest", origin="upper", zorder=1)
-    ax.set_xlim(x0, x1); ax.set_ylim(x1, x0)
-    ax.set_xticks([]); ax.set_yticks([])
-    for sp in ax.spines.values():
-        sp.set_color(EGO_COLOR); sp.set_linewidth(1.2)
-    if red is not None:
-        R.draw_boxes_bev(ax, red[0], DET_COLOR, lw,
-                         score_thresh=red[2], scores=red[1])
-    if cyan is not None:
-        R.draw_boxes_bev(ax, cyan[0], ORACLE_COLOR, lw - 0.1,
-                         score_thresh=cyan[2], scores=cyan[1])
-    if gt is not None:
-        R.draw_boxes_bev(ax, gt, GT_COLOR, lw - 0.5, dashed=True)
-    ax.add_patch(plt.Rectangle((-1.1, -2.2), 2.2, 4.4, fill=False,
-                               ec=EGO_COLOR, lw=0.9, zorder=6))
+# ---------------------------------------------------------------------------
+# scene loader
+# ---------------------------------------------------------------------------
+def load_scene(a):
+    seg = np.load(a.seg_npz, allow_pickle=True)
+    pr = np.load(a.pred_npz, allow_pickle=True)
+    rl = np.load(a.real_npz, allow_pickle=True)
+    infos = pickle.load(open(Path(a.data_root) / "nuscenes_infos_val.pkl",
+                             "rb"))["infos"]
+    agg = json.load(open(a.agg_json)) if a.agg_json else None
+    return {"seg": seg, "pr": pr, "rl": rl, "infos": infos, "agg": agg,
+            "tokens": [str(t) for t in seg["dynamic_tokens"]],
+            "cam": str(seg["dynamic_cams"][2])}
 
 
-def legend_band(fig, y0, height, compact=False):
-    """Two-row open legend: detections (lines) + map classes (blocks)."""
+# ---------------------------------------------------------------------------
+# artifact: figure — exact layout of the approved five-panel strip
+# (camera | +0.5 s | +1.5 s | +3.0 s forecasts | measured reference at +3 s)
+# ---------------------------------------------------------------------------
+def render_figure(sc, steps, out_png):
     from matplotlib.lines import Line2D
     from matplotlib.patches import Patch
-    f1 = 7.1 if not compact else 6.2
-    f2 = f1
-    _hd = [Line2D([], [], color=c, lw=1.9, label=lab,
-                  ls="--" if d else "-") for c, lab, d in LEGEND_DETECTIONS]
-    _hm = [Patch(fc=np.clip(np.array(matplotlib.colors.to_rgb(col))
-                            * MAP_ALPHA + (1 - MAP_ALPHA) * CREAM, 0, 1),
-                 ec="#b9b9b9" if lab == "no data" else "none", label=lab)
-           for col, lab in zip(MATTE_PALETTE, MAP_CLASSES + ["no data"])]
-    f1 = f2 = f1
-    leg1 = fig.legend(handles=_hd, loc="lower center", ncol=4, frameon=False,
-                      fontsize=f1, handlelength=1.5, columnspacing=1.15,
-                      bbox_to_anchor=(0.5, y0 + height * 0.55))
-    leg2 = fig.legend(handles=_hm, loc="lower center", ncol=7, frameon=False,
-                      fontsize=f2, handlelength=0.85, columnspacing=0.8,
-                      bbox_to_anchor=(0.5, y0 + height * 0.12))
-    return leg1, leg2
 
+    by = {i["token"]: i for i in sc["infos"]}
+    NCOL = 1 + len(steps) + 1
+    fig = plt.figure(figsize=(7.16, 3.14), dpi=300)
+    gs = fig.add_gridspec(1, NCOL, wspace=0.06, left=0.004, right=0.996,
+                          top=0.895, bottom=0.082)
 
-# ----------------------------------------------------------------------------
-# artifact: paper figure (static strip)
-# ----------------------------------------------------------------------------
-def render_figure(sc, steps, agg_json, out_png):
-    import matplotlib.pyplot as plt
-    import matplotlib.image as mpimg
-    fig = plt.figure(figsize=(7.16, 3.05), dpi=300)
-    nforecast = len(steps)
-    gs = fig.add_gridspec(1, nforecast + 2,
-                          width_ratios=[0.98] + [1.01] * (nforecast + 1),
-                          wspace=0.07, left=0.004, right=0.996,
-                          top=0.875, bottom=0.16)
-    E = (-50.0, 50.0)
+    def bev(ax, m, red=None, cyan=None, gt=None, lw=1.25):
+        ax.imshow(matte_map(m),
+                  extent=(-YLIM, YLIM, YLIM, -YLIM),
+                  interpolation="bilinear", origin="upper", zorder=1)
+        if red is not None:
+            R.draw_boxes_bev(ax, red[0], R.DET_COLOR, lw,
+                             score_thresh=SCORE, scores=red[1])
+        if cyan is not None:
+            R.draw_boxes_bev(ax, cyan[0], R.ORACLE_COLOR, lw - 0.1,
+                             score_thresh=SCORE, scores=cyan[1])
+        if gt is not None:
+            R.draw_boxes_bev(ax, gt, GT_COLOR, lw - 0.35, dashed=True)
+        ax.add_patch(plt.Rectangle((-1.1, -2.2), 2.2, 4.4, fill=False,
+                                   ec=EDGE_COLOR, lw=0.8, zorder=6))
+        ax.set_xlim(-XLIM, XLIM); ax.set_ylim(-YLIM, YLIM)
+        ax.set_xticks([]); ax.set_yticks([])
+        for sp in ax.spines.values():
+            sp.set_color(EGO_COLOR); sp.set_linewidth(1.1)
+
     img = mpimg.imread(sc["cam"])
-    Hc, Ww = img.shape[:2]
-    ch = int(Hc * 0.70); r0 = int(Hc * 0.18)
-    cw = int(ch * 1.35); c0 = (Ww - cw) // 2
+    H, W = img.shape[:2]
+    # camera crop to a portrait ~0.70 aspect to match the BEV panels
+    ar = (2 * XLIM) / (2 * YLIM)
+    cw = min(W, int(H * ar)); c0 = (W - cw) // 2
     ax = fig.add_subplot(gs[0, 0])
-    ax.imshow(img[r0:r0 + ch, c0:c0 + cw]); ax.set_xticks([]); ax.set_yticks([])
+    ax.imshow(img[:, c0:c0 + cw]); ax.set_xticks([]); ax.set_yticks([])
     for sp in ax.spines.values():
         sp.set_color(EGO_COLOR); sp.set_linewidth(1.1)
     ax.set_title("(a) Camera context", fontsize=9.0, pad=3)
+    ax.text(0.04, 0.968, "Busy intersection", transform=ax.transAxes,
+            fontsize=7.8, color="#111111", va="top", zorder=8,
+            bbox=dict(boxstyle="round,pad=0.22", fc="white", ec="#b9b9b9",
+                      lw=0.8, alpha=0.94))
 
-    for j, k in enumerate(steps):
-        step = 2 + k
-        axk = fig.add_subplot(gs[0, 1 + j])
-        red = (sc["pr"]["boxes_%d" % step], sc["pr"]["scores_%d" % step], SCORE)
-        draw_map(axk, sc["seg"]["dynamic_pred"][k - 1], (E[0], E[1]), red=red)
-        found, nn = R.match_gt(sc["pr"]["boxes_%d" % step],
-                               sc["pr"]["scores_%d" % step],
-                               sc["pr"]["labels_%d" % step],
-                               sc["tb_%d" % k]["gt_boxes"],
-                               sc["tb_%d" % k]["gt_names"],
+    for c, k in enumerate(steps, start=1):
+        idx = 2 + k
+        tb = by[sc["tokens"][idx]]
+        found, n_ = R.match_gt(sc["pr"]["boxes_%d" % idx],
+                               sc["pr"]["scores_%d" % idx],
+                               sc["pr"]["labels_%d" % idx],
+                               tb["gt_boxes"], tb["gt_names"],
                                dist=2.0, score_thresh=SCORE)
-        axk.set_title("(%s) Forecast at $+%.1f$ s (decoded)"
-                      % ("bcd"[j], 0.5 * k), fontsize=9.0, pad=3,
-                      color=DET_COLOR)
+        axk = fig.add_subplot(gs[0, c])
+        bev(axk, sc["seg"]["dynamic_pred"][k - 1],
+            red=(sc["pr"]["boxes_%d" % idx], sc["pr"]["scores_%d" % idx]))
+        axk.set_title("(%s) Forecast $+%0.1f$ s"
+                      % (chr(98 + c - 1), 0.5 * k), fontsize=9.0, pad=3,
+                      color=R.DET_COLOR)
         axk.text(0.04, 0.04, "mIoU %.2f\n%d/%d"
-                 % (float(sc["seg"]["dynamic_mious"][k - 1]), found, nn),
-                 transform=axk.transAxes, fontsize=7.4, color=DET_COLOR,
+                 % (float(sc["seg"]["dynamic_mious"][k - 1]), found, n_),
+                 transform=axk.transAxes, fontsize=7.6, color=R.DET_COLOR,
                  va="bottom", zorder=8, linespacing=1.18,
                  bbox=dict(boxstyle="round,pad=0.24", fc="white",
                            ec="#b9b9b9", lw=0.8, alpha=0.94))
 
-    kk = steps[-1]
-    step = 2 + kk
-    axm = fig.add_subplot(gs[0, nforecast + 1])
-    draw_map(axm, sc["seg"]["dynamic_real"][kk - 1], (E[0], E[1]),
-             cyan=(sc["rl"]["boxes_%d" % step], sc["rl"]["scores_%d" % step],
-                   SCORE),
-             gt=sc["tb_%d" % kk]["gt_boxes"])
-    axm.set_title("(%s) Measured at $+%.1f$ s" % ("efgh"[nforecast - 1],
-                  0.5 * kk), fontsize=9.0, pad=3, color=ORACLE_COLOR)
-    legend_band(fig, 0.0, 0.15)
+    idx = 2 + steps[-1]
+    axr = fig.add_subplot(gs[0, NCOL - 1])
+    bev(axr, sc["seg"]["dynamic_real"][steps[-1] - 1],
+        cyan=(sc["rl"]["boxes_%d" % idx], sc["rl"]["scores_%d" % idx]),
+        gt=by[sc["tokens"][idx]]["gt_boxes"])
+    axr.set_title("(%s) Measured, $+%.1f$ s"
+                  % (chr(98 + len(steps)), 0.5 * steps[-1]),
+                  fontsize=9.0, pad=3, color=R.ORACLE_COLOR)
+    axr.text(0.04, 0.04, "decode of the\nmeasured\nfuture latent",
+             transform=axr.transAxes, fontsize=7.6, color=R.ORACLE_COLOR,
+             va="bottom", zorder=8, linespacing=1.18,
+             bbox=dict(boxstyle="round,pad=0.24", fc="white", ec="#b9b9b9",
+                       lw=0.8, alpha=0.94))
+
+    _hbox = [
+        Line2D([], [], color=EGO_COLOR, lw=1.9, label="ego vehicle"),
+        Line2D([], [], color=R.DET_COLOR, lw=1.9,
+               label="forecast detections (decoded)"),
+        Line2D([], [], color=R.ORACLE_COLOR, lw=1.9,
+               label="measured detections (decoded)"),
+        Line2D([], [], color=GT_COLOR, lw=1.5, linestyle="--",
+               label="ground truth (dashed gray)"),
+    ]
+    _cls = ["drivable area", "pedestrian crossing", "walkway",
+            "stop line", "carpark area", "divider"]
+    _hmap = [Patch(fc=np.clip(np.array(matplotlib.colors.to_rgb(col)) * 0.84
+                              + 0.16 * CREAM, 0, 1), ec="none", label=lb)
+             for col, lb in zip(R.OI, _cls)]
+    _hmap.append(Patch(fc=tuple(CREAM), ec="#b9b9b9", lw=0.5, label="no data"))
+
+    fig.legend(handles=_hbox, loc="lower center", ncol=4, frameon=False,
+               fontsize=7.1, handlelength=1.55, columnspacing=1.35,
+               bbox_to_anchor=(0.5, 0.058))
+    fig.legend(handles=_hmap, loc="lower center", ncol=7, frameon=False,
+               fontsize=7.1, handlelength=0.85, columnspacing=0.9,
+               bbox_to_anchor=(0.5, 0.012))
+
+    Path(out_png).parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_png, dpi=300, facecolor="white")
     plt.close(fig)
     print("[figure] ->", out_png)
 
 
-def render_frames(sc, steps, agg_json, frames_dir, k_total):
-    import matplotlib.pyplot as plt
-    import matplotlib.image as mpimg
-    frames_dir.mkdir(exist_ok=True)
-    E = (-50.0, 50.0)
-    XHALF = 30.5
-    img = mpimg.imread(sc["cam"])
-    Hc, Ww = img.shape[:2]
-    ch = int(Hc * 0.70); r0 = int(Hc * 0.18); cw = int(ch * 1.35); c0 = (Ww - cw) // 2
-    for fi, k in enumerate(steps):
-        step = 2 + k
-        fig = plt.figure(figsize=(7.16, 3.14), dpi=300)
-        gs = fig.add_gridspec(1, 3, width_ratios=[0.98, 1.01, 1.01],
-                              wspace=0.05, left=0.004, right=0.996,
-                              top=0.90, bottom=0.115)
-        axc = fig.add_subplot(gs[0, 0])
-        axc.imshow(img[r0:r0 + ch, c0:c0 + cw])
-        axc.set_xticks([]); axc.set_yticks([])
-        for sp in axc.spines.values(): sp.set_color(EGO_COLOR); sp.set_linewidth(1.2)
-        axc.set_title("(a) Camera context", fontsize=9.4, pad=3)
-        draw_map(fig.add_subplot(gs[0, 1]),
-                 sc["seg"]["dynamic_pred"][k - 1], (-XHALF, XHALF, YLIM, -YLIM),
-                 red=(sc["pr"]["boxes_%d" % step], sc["pr"]["scores_%d" % step], SCORE))
-        found, nn = R.match_gt(sc["pr"]["boxes_%d" % step],
-                               sc["pr"]["scores_%d" % step],
-                               sc["pr"]["labels_%d" % step],
-                               sc["tb_%d" % k]["gt_boxes"],
-                               sc["tb_%d" % k]["gt_names"],
-                               dist=2.0, score_thresh=SCORE)
-        axb = fig.axes[-1]
-        axb.set_title("(b) Forecast at $+%.1f$ s (decoded)" % (0.5 * k),
-                      fontsize=9.4, pad=3, color=DET_COLOR)
-        axb.text(0.045, 0.045, "forecast (world model)\nmIoU %.2f\nmatched %d/%d ($\\leq$ 2 m)"
-                 % (float(sc["seg"]["dynamic_mious"][k - 1]), found, nn),
-                 transform=axb.transAxes, fontsize=7.8, color=DET_COLOR,
-                 va="bottom", zorder=8, linespacing=1.18,
-                 bbox=dict(boxstyle="round,pad=0.26", fc="white",
-                           ec="#b9b9b9", lw=0.8, alpha=0.94))
-        axm = fig.add_subplot(gs[0, 2])
-        axm = fig.add_subplot(gs[0, 2])
-        draw_map(axm, sc["seg"]["dynamic_real"][k - 1],
-                 (-XHALF, XHALF, YLIM, -YLIM),
-                 cyan=(sc["rl"]["boxes_%d" % step], sc["rl"]["scores_%d" % step], SCORE),
-                 gt=sc["tb_%d" % k]["gt_boxes"])
-        axm.set_title("(c) Measured at $+%.1f$ s (decoded)" % (0.5 * k),
-                      fontsize=9.4, pad=3, color=ORACLE_COLOR)
-        axm.text(0.045, 0.045, "real latent (reference)\ndecode of the\nmeasured future",
-                 transform=axm.transAxes, fontsize=7.8, color=ORACLE_COLOR,
-                 va="bottom", zorder=8, linespacing=1.18,
-                 bbox=dict(boxstyle="round,pad=0.26", fc="white",
-                           ec="#b9b9b9", lw=0.8, alpha=0.94))
-        legend_band(fig, 0.0, 0.115, compact=True)
-        fig.savefig(frames_dir / ("frame%03d.png" % fi), dpi=300,
-                    facecolor="white")
-        plt.close(fig)
-    print("[frames] %d frames -> %s" % (len(steps), frames_dir))
+# ---------------------------------------------------------------------------
+# artifact: frames — six-camera rig, geometry copied 1:1 from
+# render_forecast_hero_combo.py; the map layer is the shared matte map.
+# ---------------------------------------------------------------------------
+def render_frames(sc, fps, k_shown, frames_dir):
+    dg, pr, rr = sc["seg"], sc["pr"], sc["rl"]
+    tokens, infos, agg = sc["tokens"], sc["infos"], sc["agg"]
+    n_input, K = int(dg["n_input"]), int(dg["k"])
+    L = n_input + min(k_shown, K)
+    BY = {i["token"]: i for i in infos}
+
+    frames_dir.mkdir(exist_ok=True, parents=True)
+    for f_ in frames_dir.glob("frame*.png"):
+        f_.unlink()
+
+    fig = plt.figure(figsize=(11.0, 10.6), dpi=180)
+    fig.patch.set_facecolor("#ffffff")
+    gsc = fig.add_gridspec(2, 1, height_ratios=(0.115, 0.62),
+                           left=0.004, right=0.996, top=0.706, bottom=0.01,
+                           wspace=0.06, hspace=0.10)
+    ax_front = fig.add_axes((0.363, 0.760, 0.274, 0.160))
+    ax_fl = fig.add_axes((0.012, 0.775, 0.2225, 0.130))
+    ax_fr = fig.add_axes((0.7655, 0.775, 0.2225, 0.130))
+    ax_bl = fig.add_axes((0.012, 0.553, 0.2225, 0.130))
+    ax_b = fig.add_axes((0.363, 0.538, 0.274, 0.160))
+    ax_br = fig.add_axes((0.7655, 0.553, 0.2225, 0.130))
+    gsb = fig.add_gridspec(1, 2, left=0.004, right=0.996, top=0.492,
+                           bottom=0.01, wspace=0.06)
+    ax_f = fig.add_subplot(gsb[0])
+    ax_r = fig.add_subplot(gsb[1])
+    title = fig.suptitle("", fontsize=22, y=0.99)
+
+    # corner sparkline: pinned into the forecast panel's upper-right corner
+    ins = fig.add_axes((0.285, 0.388, 0.18, 0.092))
+    ins.set_facecolor("white"); ins.patch.set_alpha(0.9)
+    ins.set_xticks([]); ins.set_yticks([])
+    miou_full = dg["dynamic_mious"]
+
+    rig_labels = {"CAM_FRONT": "Front", "CAM_FRONT_LEFT": "Front Left",
+                  "CAM_FRONT_RIGHT": "Front Right", "CAM_BACK": "Back",
+                  "CAM_BACK_LEFT": "Back Left", "CAM_BACK_RIGHT": "Back Right"}
+    CAM_ORDER = R.CAM_ORDER
+    rig = [(ax_front, CAM_ORDER[0]), (ax_fl, CAM_ORDER[2]),
+           (ax_fr, CAM_ORDER[1]), (ax_bl, CAM_ORDER[4]),
+           (ax_b, CAM_ORDER[3]), (ax_br, CAM_ORDER[5])]
+
+    EXT = 50.0
+    for step in range(L):
+        is_ctx = step < n_input
+        tok = tokens[step]
+        info = BY[tok]
+
+        for ax, cam in rig:
+            rel = info["cams"][cam]["data_path"]
+            if rel.startswith("./data/nuscenes/"):
+                rel = rel[len("./data/nuscenes/"):]
+            ax.clear()
+            ax.imshow(plt.imread(Path(sc["root"]) / rel))
+            ax.set_title(rig_labels[cam], fontsize=13, pad=3.5, color="#333333")
+            ax.set_xticks([]); ax.set_yticks([])
+            for sp in ax.spines.values():
+                sp.set_color(EGO_COLOR); sp.set_linewidth(1.0)
+
+        gtb, gtn = info["gt_boxes"], info["gt_names"]
+        for ax, kind in ((ax_f, "forecast"), (ax_r, "real")):
+            ax.clear()
+            mask = (dg["dynamic_ctx"][step] if is_ctx else
+                    (dg["dynamic_pred"][step - n_input]
+                     if kind == "forecast" else dg["dynamic_real"][step - n_input]))
+            ax.imshow(matte_map(mask), extent=(-EXT, EXT, -EXT, EXT),
+                      interpolation="bilinear", origin="upper", zorder=3)
+            if kind == "forecast":
+                if is_ctx:
+                    draw_boxes = "ctx"
+                else:
+                    draw_boxes = "fc"
+            else:
+                draw_boxes = "me"
+            if draw_boxes == "ctx":
+                R.draw_boxes_bev(ax, pr["boxes_%d" % step], R.DET_COLOR, 1.9,
+                                 score_thresh=SCORE, scores=pr["scores_%d" % step])
+                ax.text(0.03, 0.035,
+                        "observed context (input latent)\n"
+                        "detections decoded · no forecast yet",
+                        transform=ax.transAxes, fontsize=13.5, color=R.DET_COLOR,
+                        bbox=dict(boxstyle="round,pad=0.3", fc="white",
+                                  ec="#b9b9b9", lw=0.8, alpha=0.94))
+                ax.set_title("Map Context + Detections (Red)",
+                             fontsize=15, pad=5, color=R.DET_COLOR)
+            elif draw_boxes == "fc":
+                kk = step - n_input + 1
+                mm = float(dg["dynamic_mious"][kk - 1])
+                found, n_ = R.match_gt(pr["boxes_%d" % step],
+                                       pr["scores_%d" % step],
+                                       pr["labels_%d" % step], gtb, gtn,
+                                       score_thresh=SCORE)
+                R.draw_boxes_bev(ax, pr["boxes_%d" % step], R.DET_COLOR, 1.9,
+                                 score_thresh=SCORE,
+                                 scores=pr["scores_%d" % step])
+                ax.text(0.03, 0.035,
+                        "forecast (world model)\n"
+                        "mIoU %.2f · matched %d/%d GT (≤ 2 m)" % (mm, found, n_),
+                        transform=ax.transAxes, fontsize=13.5,
+                        color=R.DET_COLOR,
+                        bbox=dict(boxstyle="round,pad=0.3", fc="white",
+                                  ec="#b9b9b9", lw=0.8, alpha=0.94))
+                ax.set_title("Map Forecast + Detections (Red)",
+                             fontsize=15, pad=5, color=R.DET_COLOR)
+            else:
+                R.draw_boxes_bev(ax, rr["boxes_%d" % step], R.ORACLE_COLOR, 1.5,
+                                 score_thresh=SCORE,
+                                 scores=rr["scores_%d" % step])
+                R.draw_boxes_bev(ax, gtb, GT_COLOR, 1.0, dashed=True)
+                ax.text(0.03, 0.035,
+                        "real latent (reference)\ndecode of the measured future",
+                        transform=ax.transAxes, fontsize=13.5,
+                        color=R.ORACLE_COLOR,
+                        bbox=dict(boxstyle="round,pad=0.3", fc="white",
+                                  ec="#b9b9b9", lw=0.8, alpha=0.94))
+                ax.set_title("Real BEV, Decoded", fontsize=15, pad=5,
+                             color=R.ORACLE_COLOR)
+            ax.add_patch(plt.Rectangle((-0.95, -1.9), 1.9, 4.2, fill=False,
+                                       edgecolor=EGO_COLOR, lw=1.4, zorder=6))
+            ax.set_xlim(-EXT, EXT); ax.set_ylim(-EXT, EXT)
+            ax.set_aspect("equal")
+            ax.set_xticks([]); ax.set_yticks([])
+            for sp in ax.spines.values():
+                sp.set_color(EGO_COLOR); sp.set_linewidth(1.2)
+
+        if is_ctx:
+            ins.set_visible(False)
+        else:
+            kk = step - n_input + 1
+            ins.set_visible(True)
+            ins.clear()
+            ins.set_facecolor("white"); ins.patch.set_alpha(0.9)
+            ins.set_xticks([]); ins.set_yticks([])
+            if agg:
+                for q, st in (("naiv", "dashed"), ("ego", "dotted")):
+                    c = agg[q]
+                    ins.plot(np.arange(1, len(c) + 1), c,
+                             color="#8a8a87", lw=1.4, ls=st)
+                ins.plot(np.arange(1, len(agg["wm"]) + 1), agg["wm"],
+                         color="#555555", lw=1.8)
+                ins.text(0.05, 0.04, "gray = aggregate (val) · orange = scene",
+                         transform=ins.transAxes, fontsize=6.2, color="#444444")
+            ins.plot(np.arange(1, K + 1), miou_full, color="#B25A00", lw=2.2)
+            ins.set_xlim(1, K)
+            ins.set_ylim(-0.14, 1.40 if agg else
+                         max(0.05, float(miou_full.max()) * 1.15))
+            ins.plot([kk], [miou_full[kk - 1]], "o", color="#B25A00", ms=6,
+                     mec="white", mew=0.9)
+            ins.text(0.03, 0.82, "mIoU (proxy)", transform=ins.transAxes,
+                     fontsize=10.0, color="#774400",
+                     bbox=dict(boxstyle="round,pad=0.2", fc="white",
+                               ec="none", alpha=0.92))
+            for sp in ins.spines.values():
+                sp.set_color("#b9b9b9"); sp.set_linewidth(0.8)
+
+        title.set_text("BEV World Model (nuScenes) — Maps + Detections  |  "
+                       "t = %.1f s" % (0.5 * (step + 1)))
+        fig.savefig(frames_dir / ("frame%03d.png" % step), dpi=fig.dpi)
+        print("[frames] frame%03d" % step, flush=True)
+    plt.close(fig)
+    return frames_dir
 
 
-def assemble_gif(frames_dir, out_gif, width=1500):
-    subprocess.run(["ffmpeg", "-y", "-v", "error", "-framerate", "2",
+# ---------------------------------------------------------------------------
+# artifact: GIF — assembled directly from the PNG frames (no lossy MP4 in
+# the color path). Same two-pass palette as the web pipeline.
+# ---------------------------------------------------------------------------
+def assemble_gif(frames_dir, out_gif, width=768, fps=2):
+    Path(out_gif).parent.mkdir(parents=True, exist_ok=True)
+    pal = Path(out_gif).with_suffix(".palette.png")
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-framerate", str(fps),
                     "-i", str(frames_dir / "frame%03d.png"),
-                    "-vf", "scale=%d:-1:flags=lanczos,palettegen" % width,
-                    str(Path(out_gif).with_suffix(".palette.png"))], check=True)
-    subprocess.run(["ffmpeg", "-y", "-v", "error", "-framerate", "2",
+                    "-vf", "scale=%d:-2:flags=lanczos,palettegen" % width,
+                    str(pal)], check=True)
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-framerate", str(fps),
                     "-i", str(frames_dir / "frame%03d.png"),
-                    "-i", str(Path(out_gif).with_suffix(".palette.png")),
-                    "-lavfi", "scale=%d:-1:flags=lanczos [x]; [x][1:v] paletteuse=bayer_scale=4" % width,
+                    "-i", str(pal),
+                    "-lavfi", "scale=%d:-2:flags=lanczos [x]; "
+                              "[x][1:v] paletteuse=bayer_scale=4" % width,
                     str(out_gif)], check=True)
-    subprocess.run(["ffmpeg", "-y", "-v", "error", "-framerate", "2",
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-framerate", str(fps),
                     "-i", str(frames_dir / "frame%03d.png"),
                     "-vf", "scale=out_range=full",
                     "-c:v", "libx265", "-crf", "14", "-pix_fmt", "yuv444p",
                     "-color_range", "2", "-tag:v", "hvc1",
                     "-movflags", "+faststart",
                     str(Path(out_gif).with_suffix(".h265_full.mp4"))], check=True)
-
-
-def _resolve_cam(data_root, rel):
-    """BEVFusion PKL paths are relative ("./data/nuscenes/...")."""
-    if rel.startswith("./data/nuscenes/"):
-        rel = rel[len("./data/nuscenes/"):]
-    import matplotlib  # noqa: F401
-    p = Path(data_root) / rel
-    if not p.exists():
-        raise FileNotFoundError(p)
-    return str(p)
+    print("[gif] ->", out_gif)
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser()
     ap.add_argument("--artifacts", default="figure",
-                    help="figure | frames | all")
+                    choices=["figure", "frames", "gif", "all"],
+                    help="figure = paper strip; frames = rig PNG frames; "
+                         "gif = frames + palette assembly (implies frames)")
     ap.add_argument("--seg-npz", required=True)
     ap.add_argument("--pred-npz", required=True)
     ap.add_argument("--real-npz", required=True)
     ap.add_argument("--data-root", required=True)
-    ap.add_argument("--tokens", required=True,
-                    help="token list, one per line (context + forecast)")
-    ap.add_argument("--agg-json", default=None)
+    ap.add_argument("--agg-json", default=None,
+                    help="optional decay JSON {wm:[...],naiv:[...],ego:[...]}")
+    ap.add_argument("--steps", default="1,3,6",
+                    help="forecast steps (k) shown as panels in the figure")
+    ap.add_argument("--k-shown", type=int, default=8,
+                    help="render only the first k rollout steps in the frames")
+    ap.add_argument("--fps", type=int, default=2)
+    ap.add_argument("--score-thresh", type=float, default=0.2)
+    ap.add_argument("--gif-width", type=int, default=768)
     ap.add_argument("--figure-out", default="figs/qualitative_forecast.png")
     ap.add_argument("--frames-out", default="build/qualitative_frames")
     ap.add_argument("--gif-out", default=None)
-    ap.add_argument("--steps", default="1,3,6",
-                    help="comma list of forecast steps shown (paper)")
-    args = ap.parse_args()
-    _init_colors()
+    a = ap.parse_args()
 
-    global R
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    import render_forecast_hero_combo as R
-    R.OI[:] = MATTE_PALETTE
+    global SCORE
+    SCORE = a.score_thresh
 
-    sc = {"seg": np.load(args.seg_npz, allow_pickle=True),
-          "pr": np.load(args.pred_npz, allow_pickle=True),
-          "rl": np.load(args.real_npz, allow_pickle=True),
-          "cam": _resolve_cam(args.data_root, str(np.load(args.seg_npz, allow_pickle=True)["dynamic_cams"][2])),
-          }
-    sc["tokens"] = [str(t) for t in sc["seg"]["dynamic_tokens"]]
-    infos = pickle.load(open(Path(args.data_root) / "nuscenes_infos_val.pkl",
-                             "rb"))["infos"]
-    by = {i["token"]: i for i in infos}
-    for k in range(1, int(sc["seg"]["k"]) + 1):
-        sc["tb_%d" % k] = by[sc["tokens"][2 + k]]
-    sc["agg"] = args.agg_json
-    sc["k_total"] = 21
+    sc = load_scene(a)
+    sc["root"] = a.data_root
+    steps = [int(s) for s in a.steps.split(",") if s.strip()]
 
-    arts = {x.strip() for x in args.artifacts.split(",")}
-    steps = [int(x) for x in args.steps.split(",")]
-    if "figure" in arts:
-        render_figure(sc, steps, args.agg_json, args.figure_out)
-        print("[figure] ->", args.figure_out)
-    if "frames" in arts:
-        frames_dir = Path(args.frames_out)
-        render_frames(sc, list(range(1, 9)), args.agg_json, frames_dir, 21)
-        if args.gif_out:
-            assemble_gif(frames_dir, args.gif_out)
-            print("[gif] ->", args.gif_out)
+    if a.artifacts in ("figure", "all"):
+        render_figure(sc, steps, a.figure_out)
+    if a.artifacts in ("frames", "gif", "all"):
+        frames_dir = Path(a.frames_out)
+        render_frames(sc, a.fps, a.k_shown, frames_dir)
+        if a.artifacts in ("gif", "all"):
+            out = a.gif_out or str(frames_dir.parent / "qualitative_duet.gif")
+            assemble_gif(frames_dir, out, width=a.gif_width, fps=a.fps)
 
 
 if __name__ == "__main__":
