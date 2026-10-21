@@ -70,6 +70,43 @@ def upmask(m, f=6):
     return np.repeat(np.repeat(m, f, axis=1), f, axis=2)
 
 
+# Legend content — ONE source for the paper strip and the rig GIF: edit the
+# labels, colors or chip scaling here and both artifacts update together.
+LEGEND_MAP_CLASSES = ["drivable area", "pedestrian crossing", "walkway",
+                      "stop line", "carpark area", "divider"]
+
+
+def legend_handles():
+    """Two-row open legend: detections (lines) row + matte map-class chips."""
+    from matplotlib.lines import Line2D
+    from matplotlib.patches import Patch
+    hbox = [
+        Line2D([], [], color=EGO_COLOR, lw=1.9, label="ego vehicle"),
+        Line2D([], [], color=R.DET_COLOR, lw=1.9,
+               label="forecast detections (decoded)"),
+        Line2D([], [], color=R.ORACLE_COLOR, lw=1.9,
+               label="measured detections (decoded)"),
+        Line2D([], [], color=GT_COLOR, lw=1.5, ls="--",
+               label="ground truth (dashed gray)"),
+    ]
+    hmap = [Patch(fc=np.clip(np.array(matplotlib.colors.to_rgb(col)) * 0.84
+                             + 0.16 * CREAM, 0, 1), ec="none", label=lb)
+            for col, lb in zip(R.OI, LEGEND_MAP_CLASSES)]
+    hmap.append(Patch(fc=tuple(CREAM), ec="#b9b9b9", lw=0.5, label="no data"))
+    return hbox, hmap
+
+
+def draw_legend_band(fig, fontsize, y_lines, y_chips):
+    """Place the shared legend band with per-artifact geometry."""
+    hbox, hmap = legend_handles()
+    fig.legend(handles=hbox, loc="lower center", ncol=4, frameon=False,
+               fontsize=fontsize, handlelength=1.55, columnspacing=1.35,
+               bbox_to_anchor=(0.5, y_lines))
+    fig.legend(handles=hmap, loc="lower center", ncol=7, frameon=False,
+               fontsize=fontsize, handlelength=0.85, columnspacing=0.9,
+               bbox_to_anchor=(0.5, y_chips))
+
+
 def matte_map(m):
     """GIF-grade raster: downscale the class overlay to the GIF's effective
     resolution, then bilinear upscaled display gives the soft pastel edges
@@ -186,28 +223,7 @@ def render_figure(sc, steps, out_png):
              bbox=dict(boxstyle="round,pad=0.24", fc="white", ec="#b9b9b9",
                        lw=0.8, alpha=0.94))
 
-    _hbox = [
-        Line2D([], [], color=EGO_COLOR, lw=1.9, label="ego vehicle"),
-        Line2D([], [], color=R.DET_COLOR, lw=1.9,
-               label="forecast detections (decoded)"),
-        Line2D([], [], color=R.ORACLE_COLOR, lw=1.9,
-               label="measured detections (decoded)"),
-        Line2D([], [], color=GT_COLOR, lw=1.5, linestyle="--",
-               label="ground truth (dashed gray)"),
-    ]
-    _cls = ["drivable area", "pedestrian crossing", "walkway",
-            "stop line", "carpark area", "divider"]
-    _hmap = [Patch(fc=np.clip(np.array(matplotlib.colors.to_rgb(col)) * 0.84
-                              + 0.16 * CREAM, 0, 1), ec="none", label=lb)
-             for col, lb in zip(R.OI, _cls)]
-    _hmap.append(Patch(fc=tuple(CREAM), ec="#b9b9b9", lw=0.5, label="no data"))
-
-    fig.legend(handles=_hbox, loc="lower center", ncol=4, frameon=False,
-               fontsize=7.1, handlelength=1.55, columnspacing=1.35,
-               bbox_to_anchor=(0.5, 0.058))
-    fig.legend(handles=_hmap, loc="lower center", ncol=7, frameon=False,
-               fontsize=7.1, handlelength=0.85, columnspacing=0.9,
-               bbox_to_anchor=(0.5, 0.012))
+    draw_legend_band(fig, 7.1, 0.058, 0.012)
 
     Path(out_png).parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_png, dpi=300, facecolor="white")
@@ -241,11 +257,14 @@ def render_frames(sc, fps, k_shown, frames_dir):
     ax_bl = fig.add_axes((0.012, 0.553, 0.2225, 0.130))
     ax_b = fig.add_axes((0.363, 0.538, 0.274, 0.160))
     ax_br = fig.add_axes((0.7655, 0.553, 0.2225, 0.130))
-    gsb = fig.add_gridspec(1, 2, left=0.004, right=0.996, top=0.492,
-                           bottom=0.01, wspace=0.06)
+    gsb = fig.add_gridspec(1, 2, left=0.055, right=0.945, top=0.492,
+                           bottom=0.075, wspace=0.06)
     ax_f = fig.add_subplot(gsb[0])
     ax_r = fig.add_subplot(gsb[1])
     title = fig.suptitle("", fontsize=22, y=0.99)
+
+    # two-row open legend below the BEV panels — shared band, paper style
+    draw_legend_band(fig, 10.8, 0.030, 0.004)
 
     # corner sparkline: pinned into the forecast panel's upper-right corner
     ins = fig.add_axes((0.285, 0.388, 0.18, 0.092))
@@ -299,7 +318,7 @@ def render_frames(sc, fps, k_shown, frames_dir):
                 ax.text(0.03, 0.035,
                         "observed context (input latent)\n"
                         "detections decoded · no forecast yet",
-                        transform=ax.transAxes, fontsize=13.5, color=R.DET_COLOR,
+                        zorder=12, transform=ax.transAxes, fontsize=13.5, color=R.DET_COLOR,
                         bbox=dict(boxstyle="round,pad=0.3", fc="white",
                                   ec="#b9b9b9", lw=0.8, alpha=0.94))
                 ax.set_title("Map Context + Detections (Red)",
@@ -317,7 +336,7 @@ def render_frames(sc, fps, k_shown, frames_dir):
                 ax.text(0.03, 0.035,
                         "forecast (world model)\n"
                         "mIoU %.2f · matched %d/%d GT (≤ 2 m)" % (mm, found, n_),
-                        transform=ax.transAxes, fontsize=13.5,
+                        zorder=12, transform=ax.transAxes, fontsize=13.5,
                         color=R.DET_COLOR,
                         bbox=dict(boxstyle="round,pad=0.3", fc="white",
                                   ec="#b9b9b9", lw=0.8, alpha=0.94))
@@ -330,7 +349,7 @@ def render_frames(sc, fps, k_shown, frames_dir):
                 R.draw_boxes_bev(ax, gtb, GT_COLOR, 1.0, dashed=True)
                 ax.text(0.03, 0.035,
                         "real latent (reference)\ndecode of the measured future",
-                        transform=ax.transAxes, fontsize=13.5,
+                        zorder=12, transform=ax.transAxes, fontsize=13.5,
                         color=R.ORACLE_COLOR,
                         bbox=dict(boxstyle="round,pad=0.3", fc="white",
                                   ec="#b9b9b9", lw=0.8, alpha=0.94))

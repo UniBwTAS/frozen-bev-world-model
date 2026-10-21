@@ -53,7 +53,9 @@ cover the first 4 s of a k = 21 rollout.
 `scripts/render_qualitative.py` is the single source for all qualitative
 forecast renders. Two artifacts share one STYLE block — matte segmentation
 palette, `#FEFCFE` backdrop, 0.80 map opacity with sub-pixel edge
-upsampling, detection/reference line colors — so every render matches by
+upsampling, detection/reference line colors and the shared two-row
+legend band (`legend_handles()`; one edit updates figure and GIF
+together) — so every render matches by
 construction:
 
 - `--artifacts figure` — the paper's approved five-panel strip (camera |
