@@ -223,7 +223,7 @@
         </div>
         <p class="cap"><b>Construction street</b> — lane-blocking work zone;
         drift ratio 1.38 (slight motion over-shoot); map mIoU 0.90 → 0.71 within
-        the first 4 s; detections matched up to 13/17 GT-class vehicles &lt; 2 m.</p>
+        the first 4 s; detections matched up to 12/18 GT-class vehicles &lt; 2 m.</p>
       </div>
       <div class="shot" data-shot="s3">
         <div class="plate">
@@ -253,9 +253,9 @@
         (gate ᾱ = 0.71, selected as the gate-α maximum): an open fork while
         the ego drives — persistence collapses (mIoU 0.70 → 0.38 by
         3&nbsp;s) while the forecast follows the streaming road structure;
-        the fork carries almost no GT-class traffic near the path (matched
-        1/17), so this plate is about the moving map — detections included
-        in the same duet style.</p>
+        the fork carries almost no GT-class traffic near the path, so
+        this plate is about the moving map — rendered map-only (no
+        detection decode for this window).</p>
       </div>
       <div class="shot" data-shot="s6">
         <div class="plate">
@@ -266,19 +266,13 @@
         as printed in the paper's teaser.</p>
       </div>
     </div>
-    <div class="legend">
-      <span><span class="sw" style="background:#e6a142"></span>colored = forecast map</span>
-      <span><span class="sw" style="background:#ff6b57"></span>red = forecast detections (frozen head)</span>
-      <span><span class="sw" style="background:#34d0ff"></span>cyan = decoded from the real future latent (oracle)</span>
-      <span><span class="sw" style="background:#9aa4b0"></span>gray dashes = actual traffic (GT)</span>
-    </div>
     <div class="note"><b>Honesty by design:</b> scenes are selected by disclosed,
     documented rules (gate-α statistics / front-arc traffic counts — no image
     quality cherry-picking). The mIoU/matched badges = per-step metrics of
     <i>the shown scene</i> — the same numbers as the <b>orange curve</b> in
     each GIF's corner sparkline, where a dot marks the current step:
     <b>orange = this scene</b>; <b>solid black = aggregate forecast</b>
-    (world model); <b>dashed gray = naive persistence</b> (last observed map
+    (this model); <b>dashed gray = naive persistence</b> (last observed map
     copied forward); <b>dotted gray = ego-compensated persistence</b> (the
     same map warped by the known ego pose — the hardest baseline, measured
     to 2.0&nbsp;s). Scene-level variation is real — the paper's claim
@@ -312,7 +306,7 @@
       <h3 class="serif" style="margin-top:0">How the forecast decays with horizon</h3>
       <svg class="chart" id="decay" viewBox="0 0 470 205" width="100%"
            aria-label="aggregate proxy mIoU decay"></svg>
-      <p class="cap"><b>solid black</b> = forecast (world model) ·
+      <p class="cap"><b>solid black</b> = forecast (decoded latent) ·
       <b>dashed gray</b> = naive persistence · <b>dotted</b> =
       ego-compensated persistence. Aggregate rollout (4,915 validation
       windows, the paper's protocol): proxy mIoU above naive <i>and</i>
@@ -481,7 +475,7 @@
   el("text", { x: W - M.r, y: M.t + 1, "text-anchor": "end" },
      "aggregate over 4,915 windows");
   el("text", { x: M.l + 6, y: Y(wm[0]) - 9, "font-weight": "650" },
-     "forecast (world model)");
+     "forecast (decoded latent)");
   /* line-draw on view (solid only; dashed = fade) */
   const len = d2.getTotalLength();
   d2.style.strokeDasharray = len + " " + len;

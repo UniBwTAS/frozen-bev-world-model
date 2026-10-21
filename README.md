@@ -38,10 +38,10 @@ cover the first 4 s of a k = 21 rollout.
 
 | Asset | Scene | Notes |
 |---|---|---|
-| `img/forecast_d5324133.gif` | construction street (drift 1.38) | maps + detections (red); matched up to 13/17 |
+| `img/forecast_d5324133.gif` | construction street (drift 1.38) | maps + detections (red); matched up to 12/18 |
 | `img/forecast_f1b7b463.gif` | busy intersection (drift 0.98) | maps + detections |
 | `img/forecast_029af235.gif` | fast street (drift 1.72) | maps + detections, speed-extrapolation limit |
-| `img/forecast_gatealpha.gif` | gate-α maximum (ᾱ 0.71) | copy/predict predict pole; moving map |
+| `img/forecast_gatealpha.gif` | gate-α maximum (ᾱ 0.71) | map-only: the moving-map plate (no detection decode for this window) |
 | `img/forecast_crossing.gif` | gate-α minimum (ᾱ 0.03) | copy pole; matched up to 47/64 |
 | `docs/assets/hero_combo_3e8750f3.gif` | downtown street (ᾱ 0.44, drift 0.46) | duet (webpage Plate VI); mIoU 0.84 → 0.29 in 4 s; matched up to 17/36 |
 | `docs/assets/hero_combo_134c7f63.gif` | roadworks street (ᾱ 0.57, drift 0.13) | duet (webpage Plate VII); tightest motion tracking; mIoU 0.76 → 0.52 in 4 s; matched up to 9/16 |

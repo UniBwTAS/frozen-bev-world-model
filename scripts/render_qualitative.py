@@ -130,8 +130,8 @@ def matte_map(m):
 # ---------------------------------------------------------------------------
 def load_scene(a):
     seg = np.load(a.seg_npz, allow_pickle=True)
-    pr = np.load(a.pred_npz, allow_pickle=True)
-    rl = np.load(a.real_npz, allow_pickle=True)
+    pr = np.load(a.pred_npz, allow_pickle=True) if a.pred_npz else None
+    rl = np.load(a.real_npz, allow_pickle=True) if a.real_npz else None
     infos = pickle.load(open(Path(a.data_root) / "nuscenes_infos_val.pkl",
                              "rb"))["infos"]
     agg = json.load(open(a.agg_json)) if a.agg_json else None
@@ -235,7 +235,7 @@ def render_figure(sc, steps, out_png):
 # artifact: frames — six-camera rig, geometry copied 1:1 from
 # render_forecast_hero_combo.py; the map layer is the shared matte map.
 # ---------------------------------------------------------------------------
-def render_frames(sc, fps, k_shown, frames_dir):
+def render_frames(sc, fps, k_shown, frames_dir, no_dets=False):
     dg, pr, rr = sc["seg"], sc["pr"], sc["rl"]
     tokens, infos, agg = sc["tokens"], sc["infos"], sc["agg"]
     n_input, K = int(dg["n_input"]), int(dg["k"])
@@ -313,39 +313,57 @@ def render_frames(sc, fps, k_shown, frames_dir):
             else:
                 draw_boxes = "me"
             if draw_boxes == "ctx":
-                R.draw_boxes_bev(ax, pr["boxes_%d" % step], R.DET_COLOR, 1.9,
-                                 score_thresh=SCORE, scores=pr["scores_%d" % step])
+                if not no_dets and pr is not None:
+                    R.draw_boxes_bev(ax, pr["boxes_%d" % step], R.DET_COLOR, 1.9,
+                                     score_thresh=SCORE, scores=pr["scores_%d" % step])
+                    badge = ("observed context (input latent)\n"
+                             "detections decoded · no forecast yet")
+                    badge_color = R.DET_COLOR
+                    ax.set_title("Map Context + Detections (Red)",
+                                 fontsize=15, pad=5, color=R.DET_COLOR)
+                else:
+                    badge = "observed context (input latent)"
+                    badge_color = EGO_COLOR
+                    ax.set_title("Map Context", fontsize=15, pad=5,
+                                 color=EGO_COLOR)
                 ax.text(0.03, 0.035,
-                        "observed context (input latent)\n"
-                        "detections decoded · no forecast yet",
-                        zorder=12, transform=ax.transAxes, fontsize=13.5, color=R.DET_COLOR,
+                        badge,
+                        zorder=12, transform=ax.transAxes, fontsize=13.5, color=badge_color,
                         bbox=dict(boxstyle="round,pad=0.3", fc="white",
                                   ec="#b9b9b9", lw=0.8, alpha=0.94))
-                ax.set_title("Map Context + Detections (Red)",
-                             fontsize=15, pad=5, color=R.DET_COLOR)
             elif draw_boxes == "fc":
                 kk = step - n_input + 1
                 mm = float(dg["dynamic_mious"][kk - 1])
-                found, n_ = R.match_gt(pr["boxes_%d" % step],
-                                       pr["scores_%d" % step],
-                                       pr["labels_%d" % step], gtb, gtn,
-                                       score_thresh=SCORE)
-                R.draw_boxes_bev(ax, pr["boxes_%d" % step], R.DET_COLOR, 1.9,
-                                 score_thresh=SCORE,
-                                 scores=pr["scores_%d" % step])
+                if not no_dets and pr is not None:
+                    found, n_ = R.match_gt(pr["boxes_%d" % step],
+                                           pr["scores_%d" % step],
+                                           pr["labels_%d" % step], gtb, gtn,
+                                           score_thresh=SCORE)
+                    R.draw_boxes_bev(ax, pr["boxes_%d" % step], R.DET_COLOR, 1.9,
+                                     score_thresh=SCORE,
+                                     scores=pr["scores_%d" % step])
+                    badge = ("forecast (decoded latent)\n"
+                             "mIoU %.2f · matched %d/%d GT (≤ 2 m)"
+                             % (mm, found, n_))
+                    badge_color = R.DET_COLOR
+                    ax.set_title("Map Forecast + Detections (Red)",
+                                 fontsize=15, pad=5, color=R.DET_COLOR)
+                else:
+                    badge = "forecast (decoded latent)\nmIoU %.2f" % mm
+                    badge_color = R.DET_COLOR
+                    ax.set_title("Map Forecast", fontsize=15, pad=5,
+                                 color=R.DET_COLOR)
                 ax.text(0.03, 0.035,
-                        "forecast (world model)\n"
-                        "mIoU %.2f · matched %d/%d GT (≤ 2 m)" % (mm, found, n_),
+                        badge,
                         zorder=12, transform=ax.transAxes, fontsize=13.5,
-                        color=R.DET_COLOR,
+                        color=badge_color,
                         bbox=dict(boxstyle="round,pad=0.3", fc="white",
                                   ec="#b9b9b9", lw=0.8, alpha=0.94))
-                ax.set_title("Map Forecast + Detections (Red)",
-                             fontsize=15, pad=5, color=R.DET_COLOR)
             else:
-                R.draw_boxes_bev(ax, rr["boxes_%d" % step], R.ORACLE_COLOR, 1.5,
-                                 score_thresh=SCORE,
-                                 scores=rr["scores_%d" % step])
+                if not no_dets and rr is not None:
+                    R.draw_boxes_bev(ax, rr["boxes_%d" % step], R.ORACLE_COLOR, 1.5,
+                                     score_thresh=SCORE,
+                                     scores=rr["scores_%d" % step])
                 R.draw_boxes_bev(ax, gtb, GT_COLOR, 1.0, dashed=True)
                 ax.text(0.03, 0.035,
                         "real latent (reference)\ndecode of the measured future",
@@ -393,7 +411,7 @@ def render_frames(sc, fps, k_shown, frames_dir):
             for sp in ins.spines.values():
                 sp.set_color("#b9b9b9"); sp.set_linewidth(0.8)
 
-        title.set_text("BEV World Model (nuScenes) — Maps + Detections  |  "
+        title.set_text("Maps + detections rollout — nuScenes  |  "
                        "t = %.1f s" % (0.5 * (step + 1)))
         fig.savefig(frames_dir / ("frame%03d.png" % step), dpi=fig.dpi)
         print("[frames] frame%03d" % step, flush=True)
@@ -435,8 +453,13 @@ def main():
                     help="figure = paper strip; frames = rig PNG frames; "
                          "gif = frames + palette assembly (implies frames)")
     ap.add_argument("--seg-npz", required=True)
-    ap.add_argument("--pred-npz", required=True)
-    ap.add_argument("--real-npz", required=True)
+    ap.add_argument("--pred-npz", default=None,
+                    help="required unless --no-dets")
+    ap.add_argument("--real-npz", default=None,
+                    help="required unless --no-dets")
+    ap.add_argument("--no-dets", action="store_true",
+                    help="map-only frames: no detection decoding / matched "
+                         "counts (for windows without a proper det decode)")
     ap.add_argument("--data-root", required=True)
     ap.add_argument("--agg-json", default=None,
                     help="optional decay JSON {wm:[...],naiv:[...],ego:[...]}")
@@ -455,6 +478,12 @@ def main():
     global SCORE
     SCORE = a.score_thresh
 
+    if a.no_dets and a.artifacts in ("figure", "all"):
+        sys.exit("--no-dets cannot produce the figure artifact "
+                 "(the paper strip needs decoded detections)")
+    if not a.no_dets and not (a.pred_npz and a.real_npz):
+        sys.exit("--pred-npz/--real-npz are required unless --no-dets")
+
     sc = load_scene(a)
     sc["root"] = a.data_root
     steps = [int(s) for s in a.steps.split(",") if s.strip()]
@@ -463,7 +492,7 @@ def main():
         render_figure(sc, steps, a.figure_out)
     if a.artifacts in ("frames", "gif", "all"):
         frames_dir = Path(a.frames_out)
-        render_frames(sc, a.fps, a.k_shown, frames_dir)
+        render_frames(sc, a.fps, a.k_shown, frames_dir, no_dets=a.no_dets)
         if a.artifacts in ("gif", "all"):
             out = a.gif_out or str(frames_dir.parent / "qualitative_duet.gif")
             assemble_gif(frames_dir, out, width=a.gif_width, fps=a.fps)
