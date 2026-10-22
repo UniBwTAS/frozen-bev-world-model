@@ -267,7 +267,7 @@ def render_frames(sc, fps, k_shown, frames_dir, no_dets=False):
     draw_legend_band(fig, 10.8, 0.030, 0.004)
 
     # corner sparkline: pinned into the forecast panel's upper-right corner
-    ins = fig.add_axes((0.285, 0.388, 0.18, 0.092))
+    ins = fig.add_axes((0.255, 0.375, 0.205, 0.110))
     ins.set_facecolor("white"); ins.patch.set_alpha(0.9)
     ins.set_xticks([]); ins.set_yticks([])
     miou_full = dg["dynamic_mious"]
@@ -390,14 +390,20 @@ def render_frames(sc, fps, k_shown, frames_dir, no_dets=False):
             ins.set_facecolor("white"); ins.patch.set_alpha(0.9)
             ins.set_xticks([]); ins.set_yticks([])
             if agg:
-                for q, st in (("naiv", "dashed"), ("ego", "dotted")):
+                for q, st in (("naiv", "--"), ("ego", ":")):
                     c = agg[q]
                     ins.plot(np.arange(1, len(c) + 1), c,
                              color="#8a8a87", lw=1.4, ls=st)
                 ins.plot(np.arange(1, len(agg["wm"]) + 1), agg["wm"],
                          color="#555555", lw=1.8)
-                ins.text(0.05, 0.04, "gray = aggregate (val) · orange = scene",
-                         transform=ins.transAxes, fontsize=6.2, color="#444444")
+                ins.text(0.04, 0.06,
+                         "orange = this scene   dark gray = aggregate (val)\n"
+                         "light gray dashed = naive · dotted = ego-compensated\n"
+                         "x: forecast step k (Δ0.5 s)   y: proxy mIoU",
+                         zorder=15, transform=ins.transAxes, fontsize=6.8,
+                         color="#444444", va="bottom", linespacing=1.35,
+                         bbox=dict(boxstyle="round,pad=0.25", fc="white",
+                                   ec="none", alpha=0.92))
             ins.plot(np.arange(1, K + 1), miou_full, color="#B25A00", lw=2.2)
             ins.set_xlim(1, K)
             ins.set_ylim(-0.14, 1.40 if agg else
